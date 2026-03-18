@@ -1,0 +1,143 @@
+---
+name: laravel-api
+description: "Laravel API architecture and code generation guide. JSON:API v1.1 spec compliant. Enforces layered architecture: Controller → Service → Repository → QueryBuilder. Uses timacdonald/json-api for resources, spatie/laravel-query-builder for filtering/sorting. Covers DTOs, Enums, public keys, Scramble docs, testing. MANDATORY TRIGGERS: Laravel API, REST API, JSON:API, создание API, архитектура Laravel, генерация CRUD, сервисный слой, репозиторий, DTO, API ресурс. Use this skill whenever the user works on a Laravel API project, creates new entities/endpoints, reviews Laravel code, or asks about Laravel API architecture patterns."
+---
+
+# Laravel API Production-Ready Architecture (JSON:API v1.1)
+
+This skill defines the architecture and code patterns for all Laravel API projects. Every new entity, endpoint, or feature must follow these rules.
+
+**API формат:** JSON:API v1.1 ([jsonapi.org](https://jsonapi.org)). Все ответы Public API возвращают `{data: {type, id, attributes, relationships, links}}`.
+
+## Core Architecture
+
+```
+HTTP Request → Route → Middleware → Controller → Service → Repository → QueryBuilder → Model → DB
+Response    ← JsonApiResource      ← Service   ← Repository
+```
+
+**Layers and responsibilities:**
+
+| Layer | Does | Does NOT |
+|-------|------|----------|
+| **Controller** | Accept request, call service, return response | Access DB, contain logic |
+| **Service** | Business logic, transactions, events, caching | Query DB directly |
+| **Repository** | CRUD operations via QueryBuilder | Contain business logic |
+| **QueryBuilder** | Build queries, scopes, filters, sorts | Contain CRUD or logic |
+| **Model** | Define relations, casts, accessors | Contain scopes (use QueryBuilder) |
+| **DTO** | Type-safe data transfer between layers | — |
+| **JsonApiResource** | Transform model to JSON:API format | — |
+| **Enum** | All constants, statuses, cache keys | — |
+
+**DB access policy:** Only Repository and QueryBuilder may touch the database. No `Model::query()`, `::create()`, `->save()`, `->delete()` in Controllers or Services.
+
+## JSON:API v1.1 — Key Rules
+
+| Аспект | Правило |
+|--------|---------|
+| Content-Type | `application/vnd.api+json` (middleware `ForceJsonApiContentType`) |
+| Обновление | `PATCH`, не `PUT` (по спецификации) |
+| Тело запроса (create) | `{data: {type: "customers", attributes: {...}}}` |
+| Тело запроса (update) | `{data: {type: "customers", id: "cust_01...", attributes: {...}}}` |
+| Ответ единичный | `{data: {type, id, attributes, relationships?, links?}}` |
+| Ответ коллекция | `{data: [...], meta: {current_page, per_page, total, last_page}, links: {first, last, prev, next}}` |
+| Ошибки | `{errors: [{status, code, title, detail, source?}]}` |
+| Фильтрация | `?filter[status]=active` (Spatie QueryBuilder) |
+| Сортировка | `?sort=-created_at,name` (- = DESC) |
+| Пагинация | `?page[number]=1&page[size]=20` |
+| Включение связей | `?include=charges.metric` |
+| Удаление | `204 No Content` (пустое тело) |
+| Создание | `201 Created` + `Location` header |
+
+## Directory Structure
+
+```
+app/
+├── Builders/                    # QueryBuilder classes
+│   └── {Entity}QueryBuilder.php
+├── Contracts/Enums/             # Enum interfaces (HasLabel, HasColor, HasIcon, etc.)
+├── DataTransferObjects/         # DTOs via Spatie Data
+│   └── {Entity}/
+│       ├── Create{Entity}Data.php
+│       └── Update{Entity}Data.php
+├── Enums/                       # All constants as PHP Enums
+├── Http/
+│   ├── Controllers/Api/V1/     # Thin controllers
+│   ├── Requests/{Entity}/      # FormRequests with DTO integration
+│   └── Resources/{Entity}/     # API Resources
+├── Models/                      # Eloquent models with ULID keys
+├── Repositories/
+│   ├── Contracts/              # Repository interfaces
+│   └── Eloquent/               # Implementations
+└── Services/                    # Business logic
+```
+
+## When to Read Reference Files
+
+Read the appropriate reference file **before** writing any code for that layer:
+
+| Task | Read |
+|------|------|
+| Creating new entity from scratch | `references/architecture.md` first, then all relevant layer files |
+| Writing/modifying a controller | `references/controller.md` |
+| Writing business logic | `references/service-layer.md` |
+| Writing data access layer | `references/repository-layer.md` |
+| Creating DTOs or FormRequests | `references/dto.md` |
+| Working with constants/statuses | `references/enums.md` |
+| Setting up models/migrations | `references/models.md` |
+| Working with API responses | `references/api-resources.md` |
+| Auth, rate limiting, security | `references/security.md` |
+| Writing tests | `references/testing.md` |
+| Swappable components (payments, SMS, etc.) | `references/patterns.md` |
+| Working with money/prices | `references/money.md` |
+| API documentation (Scramble) | `references/api-docs.md` |
+| Reviewing existing code | `references/code-review.md` |
+
+## Key Dependencies
+
+- `timacdonald/json-api` — JSON:API resources (`JsonApiResource` base class)
+- `spatie/laravel-query-builder` — Standardized `?filter[]`, `?sort`, `?include`, `?fields[]`
+- `spatie/laravel-data` — DTOs
+- `brick/money` — Money objects, precise arithmetic, currency support
+- `laravel/sanctum` — API authentication
+- `dedoc/scramble` — Auto-generated OpenAPI documentation from code
+
+## Quick Reference: New Entity Checklist
+
+When creating a new entity `{Entity}`:
+
+1. **Migration** — `{entity}s` table with `key` column (string, unique, 30 chars)
+2. **Model** — with prefix+ULID key generation, casts to Enums, `getRouteKeyName() → 'key'`
+3. **Enum(s)** — for any statuses/types, implementing HasLabel + HasColor + HasIcon
+4. **DTO** — `Create{Entity}Data`, `Update{Entity}Data` via Spatie Data
+5. **FormRequest** — `Store{Entity}Request`, `Update{Entity}Request` with `toDto()` method
+6. **QueryBuilder** — `{Entity}QueryBuilder` with typed filter methods
+7. **Repository Interface** — in `Contracts/`
+8. **Repository Implementation** — in `Eloquent/`, using QueryBuilder
+9. **Service** — all business logic, transactions, events
+10. **Controller** — thin, delegates to service, returns Resources, annotated with Scramble attributes
+11. **JsonApiResource** — extends `TiMacDonald\JsonApi\JsonApiResource`, `toId()` returns `key`, `toType()`, `toAttributes()`, `toRelationships()`, `toLinks()` with `Link::self()`
+12. **Routes** — versioned under `api/v1/`, PATCH for updates (not PUT), `json-api` middleware
+13. **Service Provider** — bind interface → implementation
+14. **Tests** — feature tests extending `ApiTestCase`
+
+## Anti-Patterns to Avoid
+
+- `Model::where()` in controller or service — use Repository
+- `scopeXxx()` in model — use QueryBuilder class
+- Magic strings like `'pending'`, `'completed'` — use Enums
+- Magic numbers like `3600`, `60` — use CacheTtl Enum
+- Returning arrays from services — use typed objects
+- Raw `Cache::put('key', ...)` — use CacheKey Enum with `.with()` method
+- `$request->input()` in service — pass DTO from controller
+- Fat controllers with DB queries — extract to Service + Repository
+- `float` or `decimal` for money — use `Brick\Money\Money`
+- Hardcoded payment/SMS provider — use Manager/Driver pattern with interface
+- Controller methods without PHPDoc and Scramble attributes — every method needs `#[Group]`, PHPDoc summary/description, `#[QueryParameter]`, `#[PathParameter]`, `#[Response]`
+- `response()->json([...])` in controllers — use `JsonApiResource::make()` / `::collection()`
+- `PUT` for updates — JSON:API spec requires `PATCH`
+- `?per_page=20` — use `?page[size]=20` (JSON:API pagination)
+- `?status=active` — use `?filter[status]=active` (Spatie QueryBuilder)
+- Flat request body `{name: "John"}` — wrap in `{data: {type: "customers", attributes: {name: "John"}}}`
+- `{error: {code, message}}` — use `{errors: [{status, code, title, detail}]}` (JSON:API errors)
+- Extending `JsonResource` — extend `TiMacDonald\JsonApi\JsonApiResource`
