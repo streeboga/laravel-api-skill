@@ -191,23 +191,19 @@ final class ForceJsonApiContentType
 // ❌ ПЛОХО: Инлайн-валидация в контроллере
 $request->validate(['name' => 'required|string']);
 
-// ❌ ПЛОХО: Плоская валидация без JSON:API envelope
-$request->validate(['name' => 'required|string']);
-
-// ✅ ХОРОШО: FormRequest с JSON:API envelope + toDto()
+// ✅ ХОРОШО: FormRequest с плоской валидацией + toDto()
 // В Store{Entity}Request:
 public function rules(): array
 {
     return [
-        'data.attributes.name' => 'required|string|max:255',
-        'data.attributes.email' => 'sometimes|email',
+        'name' => 'required|string|max:255',
+        'email' => 'sometimes|email',
     ];
 }
 
 public function toDto(): Create{Entity}Data
 {
-    $attributes = $this->validated('data.attributes');
-    return Create{Entity}Data::from($attributes);
+    return Create{Entity}Data::from($this->validated());
 }
 
 // В контроллере:

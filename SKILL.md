@@ -87,8 +87,8 @@ final readonly class OrderPaymentService
 |--------|---------|
 | Content-Type | `application/vnd.api+json` (middleware `ForceJsonApiContentType`) |
 | Обновление | `PATCH`, не `PUT` (по спецификации) |
-| Тело запроса (create) | `{data: {type: "customers", attributes: {...}}}` |
-| Тело запроса (update) | `{data: {type: "customers", id: "cust_01...", attributes: {...}}}` |
+| Тело запроса (create) | Плоский JSON: `{name: "John", email: "john@example.com"}` |
+| Тело запроса (update) | Плоский JSON: `{name: "Jane"}` |
 | Ответ единичный | `{data: {type, id, attributes, relationships?, links?}}` |
 | Ответ коллекция | `{data: [...], meta: {current_page, per_page, total, last_page}, links: {first, last, prev, next}}` |
 | Ошибки | `{errors: [{status, code, title, detail, source?}]}` |

@@ -40,8 +40,7 @@ public function test_cannot_view_other_users_resource(): void
 public function test_cannot_update_other_users_resource(): void
 {
     $other = {Entity}::factory()->create();
-    $payload = $this->jsonApiData('{entities}', ['name' => 'Hacked'], $other->key);
-    $this->apiAs()->patchJson("/api/v1/{entities}/{$other->key}", $payload)
+    $this->apiAs()->patchJson("/api/v1/{entities}/{$other->key}", ['name' => 'Hacked'])
         ->assertForbidden();
 }
 
@@ -62,59 +61,47 @@ public function test_store_with_empty_body_returns_422(): void
         ->assertUnprocessable();
 }
 
-public function test_store_with_flat_body_returns_422(): void
-{
-    $this->apiAs()->postJson('/api/v1/{entities}', ['name' => 'Test'])
-        ->assertUnprocessable();
-}
-
 public function test_store_without_required_field_returns_422(): void
 {
-    $payload = $this->jsonApiData('{entities}', []);
-    $this->apiAs()->postJson('/api/v1/{entities}', $payload)
+    $this->apiAs()->postJson('/api/v1/{entities}', [])
         ->assertUnprocessable()
-        ->assertJsonValidationErrorFor('data.attributes.name');
+        ->assertJsonValidationErrorFor('name');
 }
 
 public function test_store_with_too_long_name_returns_422(): void
 {
-    $payload = $this->jsonApiData('{entities}', ['name' => str_repeat('a', 256)]);
-    $this->apiAs()->postJson('/api/v1/{entities}', $payload)
+    $this->apiAs()->postJson('/api/v1/{entities}', ['name' => str_repeat('a', 256)])
         ->assertUnprocessable();
 }
 
 public function test_store_with_empty_string_returns_422(): void
 {
-    $payload = $this->jsonApiData('{entities}', ['name' => '']);
-    $this->apiAs()->postJson('/api/v1/{entities}', $payload)
+    $this->apiAs()->postJson('/api/v1/{entities}', ['name' => ''])
         ->assertUnprocessable();
 }
 
 public function test_store_with_wrong_type_returns_422(): void
 {
-    $payload = $this->jsonApiData('{entities}', ['name' => 12345]);
-    $this->apiAs()->postJson('/api/v1/{entities}', $payload)
+    $this->apiAs()->postJson('/api/v1/{entities}', ['name' => 12345])
         ->assertUnprocessable();
 }
 
 public function test_store_with_invalid_status_returns_422(): void
 {
-    $payload = $this->jsonApiData('{entities}', ['name' => 'Test', 'status' => 'nonexistent']);
-    $this->apiAs()->postJson('/api/v1/{entities}', $payload)
+    $this->apiAs()->postJson('/api/v1/{entities}', ['name' => 'Test', 'status' => 'nonexistent'])
         ->assertUnprocessable();
 }
 
 public function test_store_strips_html_tags(): void
 {
-    $payload = $this->jsonApiData('{entities}', ['name' => '<script>alert("xss")</script>Test']);
-    $this->apiAs()->postJson('/api/v1/{entities}', $payload)->assertCreated();
+    $this->apiAs()->postJson('/api/v1/{entities}', ['name' => '<script>alert("xss")</script>Test'])
+        ->assertCreated();
     $this->assertDatabaseHas('{entities}', ['name' => 'Test']);
 }
 
 public function test_store_accepts_unicode(): void
 {
-    $payload = $this->jsonApiData('{entities}', ['name' => 'Тест 日本語 🚀']);
-    $this->apiAs()->postJson('/api/v1/{entities}', $payload)
+    $this->apiAs()->postJson('/api/v1/{entities}', ['name' => 'Тест 日本語 🚀'])
         ->assertCreated()
         ->assertJsonPath('data.attributes.name', 'Тест 日本語 🚀');
 }
@@ -203,8 +190,7 @@ public function test_invalid_include_returns_400(): void
 public function test_can_transition_from_pending_to_active(): void
 {
     ${entity} = {Entity}::factory()->for($this->user)->create(['status' => 'pending']);
-    $payload = $this->jsonApiData('{entities}', ['status' => 'active'], ${entity}->key);
-    $this->apiAs()->patchJson("/api/v1/{entities}/{${entity}->key}", $payload)
+    $this->apiAs()->patchJson("/api/v1/{entities}/{${entity}->key}", ['status' => 'active'])
         ->assertOk()
         ->assertJsonPath('data.attributes.status', 'active');
 }
@@ -212,8 +198,7 @@ public function test_can_transition_from_pending_to_active(): void
 public function test_cannot_transition_from_completed_to_active(): void
 {
     ${entity} = {Entity}::factory()->for($this->user)->create(['status' => 'completed']);
-    $payload = $this->jsonApiData('{entities}', ['status' => 'active'], ${entity}->key);
-    $this->apiAs()->patchJson("/api/v1/{entities}/{${entity}->key}", $payload)
+    $this->apiAs()->patchJson("/api/v1/{entities}/{${entity}->key}", ['status' => 'active'])
         ->assertUnprocessable();
 }
 ```
@@ -223,7 +208,7 @@ public function test_cannot_transition_from_completed_to_active(): void
 ```php
 public function test_idempotent_create_returns_same_response(): void
 {
-    $payload = $this->jsonApiData('{entities}', ['name' => 'Test']);
+    $payload = ['name' => 'Test'];
     $headers = ['Idempotency-Key' => 'unique-key-123'];
 
     $first = $this->apiAs()->withHeaders($headers)->postJson('/api/v1/{entities}', $payload);
@@ -238,8 +223,8 @@ public function test_idempotent_create_returns_same_response(): void
 public function test_store_duplicate_email_returns_409(): void
 {
     {Entity}::factory()->for($this->user)->create(['email' => 'dupe@test.com']);
-    $payload = $this->jsonApiData('{entities}', ['name' => 'Test', 'email' => 'dupe@test.com']);
-    $this->apiAs()->postJson('/api/v1/{entities}', $payload)->assertConflict();
+    $this->apiAs()->postJson('/api/v1/{entities}', ['name' => 'Test', 'email' => 'dupe@test.com'])
+        ->assertConflict();
 }
 ```
 
@@ -247,12 +232,11 @@ public function test_store_duplicate_email_returns_409(): void
 
 ```
 □ Smoke: каждый CRUD → правильный статус
-□ Smoke: JSON:API структура на каждом эндпоинте
+□ Smoke: JSON:API структура ответа на каждом эндпоинте
 □ Auth: 401 без токена
 □ Auth: 401 невалидный токен
 □ Auth: 403 IDOR на show, update, delete
 □ Validation: пустое тело → 422
-□ Validation: flat body (без envelope) → 422
 □ Validation: required field missing → 422
 □ Validation: max length exceeded → 422
 □ Validation: empty string → 422

@@ -106,7 +106,7 @@
 
 ```
 □ Sanctum для аутентификации
-□ FormRequests для валидации (с JSON:API envelope data.attributes.*)
+□ FormRequests для валидации (плоский JSON на входе, НЕ data.attributes envelope)
 □ Policies для авторизации каждой сущности
 □ Input sanitization в prepareForValidation()
 □ Rate limiting на API и auth эндпоинтах
@@ -155,7 +155,8 @@
 □ Обновление через PATCH, не PUT (маршруты и тесты)
 □ Создание возвращает 201 + Location header
 □ Удаление возвращает 204 No Content (response()->noContent())
-□ Валидация через data.attributes.* (JSON:API envelope)
+□ Запросы принимают плоский JSON (НЕ data.attributes envelope)
+□ Ответы возвращают JSON:API формат (data.type, data.id, data.attributes)
 □ Ошибки: abort(404, '...'), НЕ ручной response()->json(['error' => ...])
 □ Фильтрация через Spatie QueryBuilder: ?filter[status]=active
 □ Сортировка: ?sort=-created_at (- = DESC)
@@ -227,7 +228,7 @@
 ```
 □ Feature тесты наследуют ApiTestCase
 □ Покрытие >= 85%
-□ Тесты используют JSON:API envelope (jsonApiData helper)
+□ Тесты отправляют плоский JSON на входе (НЕ data.attributes envelope)
 □ Тесты проверяют JSON:API структуру ответа (data.type, data.id, data.attributes)
 □ Тесты покрывают: CRUD, авторизацию, валидацию, фильтрацию, сортировку, пагинацию
 □ Facade fakes для side effects (Event::fake, Queue::fake, Mail::fake)

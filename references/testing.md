@@ -29,24 +29,6 @@ abstract class ApiTestCase extends TestCase
         return $this->actingAs($user ?? $this->user, 'sanctum');
     }
 
-    /**
-     * Обернуть данные в JSON:API envelope для create/update запросов.
-     */
-    protected function jsonApiData(string $type, array $attributes, ?string $id = null): array
-    {
-        $data = [
-            'data' => [
-                'type' => $type,
-                'attributes' => $attributes,
-            ],
-        ];
-
-        if ($id !== null) {
-            $data['data']['id'] = $id;
-        }
-
-        return $data;
-    }
 }
 ```
 
@@ -90,10 +72,9 @@ final class {Entity}ControllerTest extends ApiTestCase
 
     public function test_can_create_{entity}(): void
     {
-        // JSON:API envelope: {data: {type, attributes}}
-        $payload = $this->jsonApiData('{entities}', [
+        $payload = [
             'name' => 'Новый {Entity}',
-        ]);
+        ];
 
         $response = $this->apiAs()->postJson('/api/v1/{entities}', $payload);
 
@@ -134,10 +115,9 @@ final class {Entity}ControllerTest extends ApiTestCase
     {
         ${entity} = {Entity}::factory()->for($this->user)->create();
 
-        // JSON:API envelope для update: {data: {type, id, attributes}}
-        $payload = $this->jsonApiData('{entities}', [
+        $payload = [
             'name' => 'Updated Name',
-        ], ${entity}->key);
+        ];
 
         $response = $this->apiAs()->patchJson("/api/v1/{entities}/{${entity}->key}", $payload);
 
@@ -171,9 +151,9 @@ final class {Entity}ControllerTest extends ApiTestCase
 
     public function test_validation_returns_json_api_errors(): void
     {
-        $payload = $this->jsonApiData('{entities}', [
+        $payload = [
             // name is required but missing
-        ]);
+        ];
 
         $response = $this->apiAs()->postJson('/api/v1/{entities}', $payload);
 
@@ -228,17 +208,20 @@ final class {Entity}ControllerTest extends ApiTestCase
 ## Правила
 - Наследуй ApiTestCase для всех API тестов
 - Применяй helper `apiAs()` для аутентифицированных запросов
-- Используй `jsonApiData()` для формирования JSON:API envelope в запросах
+- Отправляй данные как плоский JSON: `{name: "John"}`, НЕ в `data.attributes` envelope
 - Тестируй CRUD, авторизацию, валидацию, фильтрацию, сортировку, пагинацию
 - Используй factories с `->for($this->user)`
-- Проверяй JSON:API структуру ответа: `data.type`, `data.id`, `data.attributes`, `data.links`
+- Проверяй JSON:API структуру **ответа**: `data.type`, `data.id`, `data.attributes`, `data.links`
 - Проверяй что `data.id` — это public key (prefix + ULID), не числовой id
 - Для create — проверяй 201 + Location header
 - Для delete — проверяй `assertNoContent()` (204)
 - Для ошибок — проверяй `errors` массив с `status`, `title`, `detail`
-- Отправляй данные в JSON:API envelope: `{data: {type, attributes}}`, не flat JSON
 - Покрытие тестами — минимум 85%: `php artisan test --coverage --min=85`
 - Используй `RefreshDatabase` (не `DatabaseMigrations`) — быстрее
+
+**ВАЖНО: Разделение входа и выхода**
+- **Запрос (вход):** плоский JSON — `{"name": "John", "email": "john@example.com"}`
+- **Ответ (выход):** JSON:API формат — `{"data": {"type": "customers", "id": "cust_01...", "attributes": {...}}}`
 
 ## Edge Cases & Corner Cases
 
@@ -257,7 +240,7 @@ public function test_create_dispatches_event(): void
 {
     Event::fake();
 
-    $payload = $this->jsonApiData('{entities}', ['name' => 'Test']);
+    $payload = ['name' => 'Test'];
     $this->apiAs()->postJson('/api/v1/{entities}', $payload);
 
     Event::assertDispatched({Entity}Created::class);
@@ -291,7 +274,7 @@ public function test_create_sends_notification_email(): void
 {
     Mail::fake();
 
-    $payload = $this->jsonApiData('{entities}', ['name' => 'Test']);
+    $payload = ['name' => 'Test'];
     $this->apiAs()->postJson('/api/v1/{entities}', $payload);
 
     Mail::assertSent({Entity}CreatedMail::class);
@@ -445,7 +428,7 @@ public function test_expired_entities_are_filtered(): void
 public function test_created_at_is_current(): void
 {
     $this->freezeTime(function () {
-        $payload = $this->jsonApiData('{entities}', ['name' => 'Test']);
+        $payload = ['name' => 'Test'];
         $response = $this->apiAs()->postJson('/api/v1/{entities}', $payload);
 
         $response->assertJsonPath('data.attributes.created_at', now()->toIso8601String());
