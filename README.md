@@ -244,6 +244,168 @@ php artisan test --coverage --min=85
 4. PR фикс               → /ralph-loop с PR-промптом (авто-фикс замечаний)
 ```
 
+## Superpowers — Структурированная разработка
+
+[Superpowers](https://github.com/anthropics/claude-code) — набор из 14 скиллов для Claude Code, которые превращают разработку в pipeline с quality gates. Каждый скилл — отдельная дисциплина.
+
+### Pipeline: от идеи до merge
+
+```
+/brainstorming → /writing-plans → /using-git-worktrees → /subagent-driven-development → /finishing-a-development-branch
+```
+
+| Фаза | Скилл | Что делает |
+|------|-------|-----------|
+| 1. Дизайн | `/brainstorming` | Исследует идею, задаёт вопросы, предлагает 2-3 подхода, сохраняет design doc |
+| 2. План | `/writing-plans` | Конвертирует дизайн в пошаговый план (2-5 мин на задачу, TDD) |
+| 3. Изоляция | `/using-git-worktrees` | Создаёт worktree, ставит зависимости, проверяет baseline |
+| 4. Реализация | `/subagent-driven-development` | Отдельный агент на каждую задачу + двойное ревью (spec + quality) |
+| 5. Завершение | `/finishing-a-development-branch` | Merge / PR / keep / discard + cleanup worktree |
+
+### Альтернативные точки входа
+
+| Ситуация | Начни с |
+|----------|--------|
+| Новая фича с нуля | `/brainstorming` |
+| Баг-репорт | `/systematic-debugging` |
+| Есть готовый план | `/executing-plans` или `/subagent-driven-development` |
+| Несколько независимых падений | `/dispatching-parallel-agents` |
+| Получил code review | `/receiving-code-review` |
+
+### Сквозные дисциплины (применяются на каждом шаге)
+
+- **`/test-driven-development`** — Red→Green→Refactor. Никакого кода без падающего теста
+- **`/verification-before-completion`** — Никаких "done" без свежего вывода тестов. Evidence before claims
+- **`/systematic-debugging`** — 4 фазы: reproduce → pattern analysis → hypothesis → fix with test
+
+### Пример: создание Invoice через Superpowers
+
+```bash
+# 1. Обсудить идею
+> "Нужна сущность Invoice с оплатой и PDF-генерацией"
+# Claude запускает /brainstorming → задаёт вопросы → сохраняет design doc
+
+# 2. Написать план
+# Claude запускает /writing-plans → создаёт docs/plans/invoice-plan.md
+
+# 3. Выполнить через субагентов
+# Claude запускает /using-git-worktrees → /subagent-driven-development
+# Каждая задача: агент пишет тест → имплементация → ревью (spec + quality) → fix → next
+
+# 4. Завершить
+# Claude запускает /finishing-a-development-branch → merge в main
+```
+
+## BMAD Method — AI Agile Framework
+
+[BMAD](https://github.com/bmadcode/BMAD-METHOD) (BMad Agile Development) — open-source AI-driven agile фреймворк с 12+ доменными агентами (Project Manager, Architect, Developer, UX Specialist и др.).
+
+### Установка
+
+```bash
+npx bmad-method install
+```
+
+### Как работает с Laravel API Skill
+
+BMAD структурирует **процесс** (анализ → планирование → архитектура → реализация), наш скилл даёт **шаблоны кода** для каждого слоя. Вместе:
+
+```
+BMAD Architect   → Решает архитектуру → Наш скилл даёт шаблон Controller/Service/Repository
+BMAD Developer   → Пишет код         → Наш скилл обеспечивает JSON:API compliance
+BMAD PM          → Трекает прогресс   → code-review.md проверяет качество
+```
+
+### Workflow
+
+```
+1. bmad-help "Начинаем Invoice модуль"
+   → BMAD: анализ требований, архитектурные решения
+
+2. BMAD Architect определяет структуру
+   → Наш скилл: references/architecture.md + entity checklist (14 шагов)
+
+3. BMAD Developer реализует
+   → Наш скилл: controller.md, service-layer.md, repository-layer.md, testing.md
+
+4. BMAD PM проверяет
+   → Наш скилл: code-review.md (13 секций чеклиста)
+```
+
+### Party Mode
+
+BMAD позволяет загрузить несколько агентов в одну сессию для совместного обсуждения — полезно для архитектурных решений перед генерацией кода.
+
+## GSD (Get Shit Done) — Spec-Driven Development
+
+[GSD](https://github.com/gsd-build/get-shit-done) решает проблему **context rot** — деградации качества при длинных сессиях. Работа разбивается на атомарные задачи, каждая выполняется в свежем контексте.
+
+### Установка
+
+```bash
+npx get-shit-done-cc@latest
+# Выбрать: Claude Code → global/local
+```
+
+### Core Workflow
+
+```
+/gsd:new-project → /gsd:discuss-phase 1 → /gsd:plan-phase 1 → /gsd:execute-phase 1 → /gsd:verify-work 1
+```
+
+| Команда | Что делает |
+|---------|-----------|
+| `/gsd:new-project` | Задаёт вопросы, создаёт PROJECT.md, REQUIREMENTS.md, ROADMAP.md |
+| `/gsd:map-codebase` | Для существующих проектов — анализирует стек и архитектуру |
+| `/gsd:discuss-phase N` | Обсуждает неясности фазы, создаёт {phase}-CONTEXT.md |
+| `/gsd:plan-phase N` | Спавнит исследователей, создаёт атомарные планы в XML |
+| `/gsd:execute-phase N` | Выполняет планы волнами (параллельно где можно), atomic git commits |
+| `/gsd:verify-work N` | UAT: проводит через тестируемые результаты, спавнит debug-агентов |
+| `/gsd:quick` | Быстрый режим для ad-hoc задач |
+
+### Как работает с Laravel API Skill
+
+GSD управляет **процессом и контекстом**, наш скилл даёт **правила и шаблоны**:
+
+```
+GSD /gsd:new-project       → Создаёт PROJECT.md с требованиями
+                            → Наш SKILL.md определяет архитектуру и JSON:API формат
+
+GSD /gsd:plan-phase 1      → Создаёт план с атомарными задачами
+                            → Каждая задача ссылается на reference-файл нашего скилла
+
+GSD /gsd:execute-phase 1   → Выполняет в свежих контекстах (без context rot)
+                            → Каждый агент получает нужный reference-файл
+
+GSD /gsd:verify-work 1     → Проходит UAT
+                            → code-review.md + testing-edge-cases.md для проверки
+```
+
+### Ключевая фича: свежий контекст на каждую задачу
+
+GSD спавнит субагента с чистым 200K-контекстом для каждой задачи. Это значит наш скилл загружается свежим каждый раз — без деградации качества на поздних задачах.
+
+## Сравнение методологий
+
+| | Ralph Loop | Superpowers | BMAD | GSD |
+|---|---|---|---|---|
+| **Подход** | Один промпт в цикле | Pipeline со скиллами | Agile с AI-агентами | Spec-driven, атомарные задачи |
+| **Контекст** | Тот же (копится) | Субагенты — свежий | Тот же | Свежий на задачу |
+| **Ревью** | В промпте | Автоматическое (2-stage) | Через PM-агента | UAT + debug-агенты |
+| **Параллелизм** | Нет | Worktrees + субагенты | Party Mode | Волны задач |
+| **Лучше для** | Итеративные фиксы | Полный цикл фичи | Большие проекты, команды | Борьба с context rot |
+| **С нашим скиллом** | Ревью→фикс цикл | Шаблоны для каждого шага | Архитектурные решения | Атомарная генерация |
+
+### Рекомендация: комбинируй
+
+```
+Маленькая задача (фикс, рефактор)     → Ralph Loop
+Средняя фича (новая сущность)         → Superpowers или GSD
+Большой проект (несколько сущностей)   → GSD + наш скилл
+Архитектурные решения                  → BMAD Architect + наш скилл
+Периодический мониторинг               → /loop
+```
+
 ## Архитектура скилла
 
 ```
