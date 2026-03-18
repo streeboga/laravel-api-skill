@@ -75,13 +75,17 @@ public function rules(): array
 ```php
 use Dedoc\Scramble\Attributes\Group;
 
-// ✅ Правильно — все три параметра
+// ✅ Правильно — все три параметра, группа верхнего уровня
 #[Group(name: 'Payments', description: 'Create, confirm, capture and cancel payment intents', weight: 1)]
 final class PaymentController extends Controller
 
-// ✅ Правильно — вложенная группа для Admin API
-#[Group(name: 'Admin > Connectors', description: 'Manage payment connectors (PSPs) for merchant accounts', weight: 14)]
+// ✅ Правильно — вложенная группа через разделитель ">"
+#[Group(name: 'Admin > Connectors', description: 'Manage payment connectors (PSPs) for merchant accounts', weight: 104)]
 final class ConnectorController extends Controller
+
+// ✅ Правильно — Dashboard-группа
+#[Group(name: 'Dashboard > Payments', description: 'Payment list and export for the dashboard', weight: 201)]
+final class DashboardPaymentController extends Controller
 
 // ❌ ЗАПРЕЩЕНО — нет description
 #[Group(name: 'Payments', weight: 1)]
@@ -92,6 +96,32 @@ final class ConnectorController extends Controller
 // ❌ ЗАПРЕЩЕНО — weight не уникален (конфликт с другой группой)
 ```
 
+**Группировка в сайдбаре через разделитель `>`:**
+
+Разделитель `>` в `name` определяет **секцию** в сайдбаре. Часть до `>` — название секции, после — название подгруппы. Scramble автоматически генерирует `x-tagGroups` из этих префиксов.
+
+```
+Сайдбар:
+┌─ API (группы без ">")
+│  ├── Payments
+│  ├── Customers
+│  └── Refunds
+├─ Dashboard (префикс "Dashboard >")
+│  ├── Dashboard > Payments
+│  └── Dashboard > Analytics
+└─ Admin (префикс "Admin >")
+   ├── Admin > Organizations
+   └── Admin > Connectors
+```
+
+Группы без `>` попадают в дефолтную секцию (настраивается через `scramble.ui.default_tag_group`, по умолчанию "API").
+
+**Правила для `name`:**
+- Без `>` — верхнеуровневая группа (попадает в секцию "API")
+- С `>` — вложенная группа (часть до `>` = секция в сайдбаре)
+- Формат: `{Секция} > {Подгруппа}` — пробелы вокруг `>` обязательны
+- Названия секций: `Admin`, `Dashboard`, `Internal` и т.п.
+
 **Правила для `description`:**
 - Описывает НАЗНАЧЕНИЕ всей группы, не перечисляет CRUD-операции
 - 1-2 предложения, краткие и понятные
@@ -100,9 +130,12 @@ final class ConnectorController extends Controller
 
 **Правила для `weight`:**
 - Каждая группа имеет УНИКАЛЬНЫЙ weight
-- Merchant API: 1-9 (основные операции, по важности)
-- Admin API: 10-19 (с префиксом `Admin >` в name)
-- Служебные: 20+ (webhooks, health и т.п.)
+- Weight определяет порядок **внутри** секции
+- Рекомендуемые диапазоны:
+  - Public API: 1-99
+  - Admin API: 100-199 (с префиксом `Admin >`)
+  - Dashboard API: 200-299 (с префиксом `Dashboard >`)
+  - Служебные: 900+ (webhooks, health)
 
 ### PHPDoc — на каждый метод
 
