@@ -147,56 +147,102 @@ php artisan test --coverage --min=85
 2. Запускает агентов в параллельных worktrees
 3. Собирает результаты и мержит
 
-### Через Ralph Loop
+### Через Ralph Loop — автоматический цикл ревью→фикс→ревью
 
-[Ralph Loop](https://github.com/anthropics/claude-code) — плагин для Claude Code, который запускает рекурсивный цикл проверок:
+[Ralph Loop](https://ghuntley.com/ralph/) — плагин для Claude Code, реализующий технику Ralph Wiggum: один и тот же промпт подаётся Claude итеративно. Claude видит свою предыдущую работу в файлах и git history, и итеративно улучшает код до достижения цели.
+
+**Принцип:**
+```
+Итерация 1: Claude получает промпт → делает ревью → находит 5 проблем → исправляет 3
+Итерация 2: тот же промпт → видит свой фикс → находит 2 оставшихся → исправляет
+Итерация 3: тот же промпт → ревью чисто → тесты проходят → выводит <promise>
+→ Цикл завершён
+```
+
+#### Цикл: Ревью → Фикс → Ревью (до чистого состояния)
 
 ```bash
-# Запуск Ralph Loop с интервалом 5 минут
-/ralph-loop
+/ralph-loop "Ты — Laravel API ревьюер. Загрузи references/code-review.md и прогони ВСЕ 13 секций чеклиста по текущему коду в app/.
 
-# Ralph Loop автоматически:
-# 1. Проверяет git status
-# 2. Запускает тесты
-# 3. Запускает PHPStan
-# 4. Запускает Pint
-# 5. Если находит проблемы — исправляет
-# 6. Повторяет через interval
+На каждой итерации:
+1. Запусти php artisan test — если падают, исправь
+2. Запусти ./vendor/bin/phpstan analyse — если ошибки, исправь
+3. Запусти ./vendor/bin/pint --test — если нарушения, исправь
+4. Прогони чеклист из code-review.md по всем файлам в app/
+5. Если нашёл нарушения архитектуры — исправь (загрузи нужный reference файл)
+6. После исправлений — повтори проверки
+
+Когда ВСЕ тесты зелёные, PHPStan чистый, Pint чистый, и чеклист полностью пройден без нарушений — выведи:
+<promise>REVIEW COMPLETE</promise>" --completion-promise "REVIEW COMPLETE" --max-iterations 15
 ```
 
-**Сценарий с Ralph Loop + Laravel API Skill:**
+#### Цикл: Создание сущности с полной проверкой
 
-```
-Вы: Запусти Ralph Loop и создай сущности Invoice, Payment, Subscription
+```bash
+/ralph-loop "Создай сущность Invoice по чеклисту из SKILL.md (14 шагов): Migration, Model, Enum, DTO, FormRequest, QueryBuilder, Repository Interface, Repository, Service, Controller, JsonApiResource, Routes, ServiceProvider, Tests.
 
-Ralph Loop цикл:
-├── Итерация 1: Создание Invoice (14 файлов)
-│   ├── Генерация кода
-│   ├── php artisan test → найдены ошибки
-│   ├── Исправление
-│   └── phpstan → чисто
-├── Итерация 2: Создание Payment
-│   ├── Генерация кода
-│   ├── php artisan test → ОК
-│   └── phpstan → 2 ошибки → исправление
-├── Итерация 3: Создание Subscription
-│   ├── Генерация кода
-│   └── Полный pipeline → ОК
-└── Итерация 4: Финальная проверка
-    ├── php artisan test --coverage → 91%
-    ├── ./vendor/bin/pint --test → ОК
-    └── ./vendor/bin/phpstan → ОК → DONE
+Загрузи все нужные reference-файлы для каждого слоя.
+
+После генерации каждого файла:
+1. Запусти тесты: php artisan test
+2. Запусти PHPStan: ./vendor/bin/phpstan analyse
+3. Запусти Pint: ./vendor/bin/pint
+4. Если ошибки — исправь и повтори
+
+Тесты должны покрывать ВСЕ edge cases из references/testing-edge-cases.md.
+Покрытие должно быть >= 85%.
+
+Когда все 14 файлов созданы, тесты зелёные, PHPStan чистый — выведи:
+<promise>ENTITY COMPLETE</promise>" --completion-promise "ENTITY COMPLETE" --max-iterations 20
 ```
 
-### Через Loop Skill
+#### Цикл: Фикс после PR-ревью
 
-Для периодического мониторинга:
+```bash
+/ralph-loop "Прочитай комментарии в PR и исправь все замечания. После каждого исправления:
+1. php artisan test
+2. ./vendor/bin/phpstan analyse
+3. Проверь что исправление соответствует references/code-review.md
 
+Когда все замечания исправлены и pipeline зелёный — выведи:
+<promise>PR FIXED</promise>" --completion-promise "PR FIXED" --max-iterations 10
 ```
+
+#### Отмена Ralph Loop
+
+```bash
+/cancel-ralph
+```
+
+### Через Loop Skill — периодический мониторинг
+
+`/loop` запускает команду с интервалом (по умолчанию 10 мин). Подходит когда вы работаете и хотите чтобы проверки шли в фоне:
+
+```bash
+# Мониторинг тестов + PHPStan каждые 5 минут
 /loop 5m php artisan test && ./vendor/bin/phpstan analyse
+
+# Мониторинг code style каждые 3 минуты
+/loop 3m ./vendor/bin/pint --test
 ```
 
-Запускает проверки каждые 5 минут пока вы работаете.
+**Разница Ralph Loop vs /loop:**
+
+| | Ralph Loop | /loop |
+|---|---|---|
+| Что делает | Claude итеративно исправляет код | Запускает shell-команду по таймеру |
+| Кто исправляет | Claude сам | Вы вручную |
+| Когда завершается | Когда `<promise>` выведен | Когда вы отменяете |
+| Подходит для | Автоматический ревью→фикс цикл | Мониторинг в фоне |
+
+### Рекомендуемый workflow
+
+```
+1. Разработка фичи      → Работаете руками + Claude помогает
+2. Пре-коммит проверка   → /ralph-loop с ревью-промптом (авто-фикс)
+3. Фоновый мониторинг    → /loop 5m тесты + PHPStan (пока работаете)
+4. PR фикс               → /ralph-loop с PR-промптом (авто-фикс замечаний)
+```
 
 ## Архитектура скилла
 
