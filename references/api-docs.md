@@ -6,6 +6,43 @@
 
 ---
 
+## Формат входа и выхода
+
+**ВАЖНО: Запрос и ответ используют РАЗНЫЕ форматы.**
+
+| | Формат | Пример |
+|---|--------|--------|
+| **Запрос (request body)** | Плоский JSON | `{"name": "John", "email": "john@example.com"}` |
+| **Ответ (response body)** | JSON:API | `{"data": {"type": "customers", "id": "cust_01...", "attributes": {...}}}` |
+
+**Для Scramble это значит:**
+- **FormRequest** валидирует плоские поля: `'name' => 'required|string'`, НЕ `'data.attributes.name'`
+- Scramble автоматически выведет request body schema из FormRequest — плоские поля
+- Scramble автоматически выведет response schema из JsonApiResource — JSON:API формат
+- `#[BodyParameter]` нужен только для полей, которые Scramble не может вывести (array, object, mixed)
+
+```php
+// ✅ FormRequest — плоская валидация
+public function rules(): array
+{
+    return [
+        'name' => 'required|string|max:255',
+        'email' => 'required|email',
+        'status' => ['sometimes', Rule::enum(CustomerStatus::class)],
+    ];
+}
+
+// ❌ ЗАПРЕЩЕНО — data.attributes envelope
+public function rules(): array
+{
+    return [
+        'data.attributes.name' => 'required|string|max:255',
+    ];
+}
+```
+
+---
+
 ## ОБЯЗАТЕЛЬНЫЕ ТРЕБОВАНИЯ
 
 Каждый контроллер и каждый метод ОБЯЗАНЫ иметь полный набор атрибутов документации. Код без этих атрибутов — незавершённый код. Ни один контроллер не считается готовым, пока все пункты ниже не выполнены.
