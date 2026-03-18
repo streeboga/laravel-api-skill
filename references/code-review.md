@@ -165,19 +165,61 @@
 □ Нет response()->json() с ручной обёрткой {data: {id, name, ...}}
 ```
 
-## 11. API Documentation (Scramble)
+## 11. API Documentation (Scramble) — КРИТИЧЕСКАЯ СЕКЦИЯ
+
+Каждый пункт ниже — обязательный. Отсутствие любого = ❌ критическая проблема.
 
 ```
-□ Контроллер имеет #[Group('Name', description: '...', weight: N)] на классе
-□ Каждый публичный метод имеет PHPDoc с summary (1-я строка) и description
-□ Summary начинается с глагола: List, Create, Get, Update, Delete, Archive
-□ Description описывает бизнес-поведение, не техническую реализацию
-□ Все query-параметры описаны через #[QueryParameter] в JSON:API формате (filter[status])
-□ Все path-параметры описаны через #[PathParameter] с example public key
-□ Все возможные HTTP-коды описаны через #[Response(code, description: '...')]
-□ Для array/object полей в body используется #[BodyParameter] если Scramble не может вывести тип
-□ Нет PHPDoc, дублирующих URL (❌ "GET /api/v1/customers")
-□ Нет технических описаний вместо бизнес-смысла (❌ "Queries the customers table")
+### Group (на классе контроллера)
+□ #[Group] присутствует на классе
+□ name: задан (название группы в сайдбаре)
+□ description: задан (человеческое описание назначения группы, 1-2 предложения)
+□ weight: задан (уникальное число, определяет порядок в меню)
+□ Формат: #[Group(name: '...', description: '...', weight: N)]
+□ ❌ КРИТИЧНО если нет description — группа без описания в сайдбаре
+□ ❌ КРИТИЧНО если нет weight — пункты меню вперемешку
+
+### PHPDoc (на каждом публичном методе)
+□ Summary (1-я строка) присутствует
+□ Summary начинается с глагола: List, Create, Get, Update, Delete, Confirm, Capture, Cancel, Revoke, Export
+□ Summary БЕЗ точки в конце
+□ Summary БЕЗ артикля "a/an/the" (Create customer, НЕ Create a customer)
+□ Description (2+ строки) присутствует — бизнес-поведение, не техническая реализация
+□ Description указывает side-effects, ограничения, предусловия
+□ ❌ КРИТИЧНО если нет PHPDoc — эндпоинт без описания в доке
+□ ❌ КРИТИЧНО если PHPDoc без description — только заголовок, нет объяснения
+□ Нет PHPDoc дублирующих URL (❌ "GET /api/v1/customers")
+□ Нет технических описаний (❌ "Queries the customers table")
+
+### PathParameter (на каждом методе с {param} в route)
+□ #[PathParameter] присутствует для КАЖДОГО path-параметра
+□ description задан
+□ example задан в формате {prefix}_{ulid}
+□ ❌ КРИТИЧНО если метод имеет path-параметр но нет #[PathParameter]
+
+### Response (на каждом методе)
+□ #[Response] присутствует для КАЖДОГО возможного HTTP-кода
+□ index: минимум 200
+□ store: минимум 201, 422
+□ show: минимум 200, 404
+□ update: минимум 200, 404, 422
+□ destroy: минимум 204, 404
+□ Доп. коды: 401, 403, 409 — если применимо
+□ ❌ КРИТИЧНО если нет ни одного #[Response]
+
+### QueryParameter (на методах с фильтрами/сортировкой/пагинацией)
+□ #[QueryParameter] для КАЖДОГО используемого параметра запроса
+□ type задан (string, integer и т.д.)
+□ description задан
+□ enum задан для параметров с фиксированным набором значений (статусы, типы, режимы)
+□ example задан для параметров с произвольным значением (даты, строки, числа)
+□ Пагинация: page[size] и page[number] описаны
+□ Сортировка: sort описана
+□ ❌ КРИТИЧНО если фильтр по статусу/типу без enum — непонятно какие значения допустимы
+
+### BodyParameter (только когда Scramble не может вывести тип)
+□ Используется для array/object/mixed полей, которые Scramble не выводит
+□ НЕ дублирует то, что Scramble выводит из FormRequest
 ```
 
 ## 12. Тестирование

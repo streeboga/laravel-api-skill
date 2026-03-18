@@ -4,92 +4,248 @@
 
 `dedoc/scramble` — автоматическая генерация OpenAPI документации из кода Laravel. Scramble анализирует типы, валидацию, return-ы. Но для полноценной документации **обязательно** добавлять PHPDoc и PHP 8 атрибуты.
 
-## Правила
+---
 
-- Каждый контроллер **обязательно** имеет `#[Group]` атрибут на классе
-- Каждый публичный метод контроллера **обязательно** имеет PHPDoc с summary и description
-- Query-параметры (фильтры, пагинация) — `#[QueryParameter]`
-- Path-параметры — `#[PathParameter]` с примером public key
-- Все возможные HTTP-коды ответа — `#[Response]`
-- Body-параметры Scramble выводит из `$request->validate()` / FormRequest автоматически; `#[BodyParameter]` только для `array`/`object` полей, которые Scramble не может вывести
+## ОБЯЗАТЕЛЬНЫЕ ТРЕБОВАНИЯ
 
-## Атрибуты Scramble
+Каждый контроллер и каждый метод ОБЯЗАНЫ иметь полный набор атрибутов документации. Код без этих атрибутов — незавершённый код. Ни один контроллер не считается готовым, пока все пункты ниже не выполнены.
+
+### Чеклист для КАЖДОГО контроллера (класс)
+
+| # | Требование | Без него |
+|---|------------|----------|
+| 1 | `#[Group(name: '...', description: '...', weight: N)]` — ВСЕ ТРИ параметра | Группа без описания, порядок в меню случайный |
+| 2 | `description` в Group — человеческое описание назначения всей группы (1-2 предложения) | Пустое описание секции в сайдбаре |
+| 3 | `weight` — уникальное число, определяет порядок в сайдбаре (меньше = выше) | Пункты меню вперемешку |
+
+### Чеклист для КАЖДОГО публичного метода
+
+| # | Требование | Без него |
+|---|------------|----------|
+| 1 | **PHPDoc** с summary (1-я строка) И description (остальные) | Эндпоинт без названия и описания |
+| 2 | **`#[PathParameter]`** для КАЖДОГО `{param}` в route, с `description` и `example` | Параметр URL без описания |
+| 3 | **`#[Response]`** для КАЖДОГО возможного HTTP-кода | Неполная документация ответов |
+| 4 | **`#[QueryParameter]`** для КАЖДОГО фильтра/сортировки/пагинации | Скрытые параметры, не видны в доке |
+
+---
+
+## Атрибуты Scramble — подробно
 
 ### `#[Group]` — на класс контроллера
 
-Группирует все эндпоинты контроллера в сайдбаре документации.
+**ВСЕ ТРИ параметра ОБЯЗАТЕЛЬНЫ: `name`, `description`, `weight`.**
 
 ```php
 use Dedoc\Scramble\Attributes\Group;
 
-#[Group('Customers', description: 'Customer management for the current application', weight: 2)]
-class CustomerController extends Controller
+// ✅ Правильно — все три параметра
+#[Group(name: 'Payments', description: 'Create, confirm, capture and cancel payment intents', weight: 1)]
+final class PaymentController extends Controller
+
+// ✅ Правильно — вложенная группа для Admin API
+#[Group(name: 'Admin > Connectors', description: 'Manage payment connectors (PSPs) for merchant accounts', weight: 14)]
+final class ConnectorController extends Controller
+
+// ❌ ЗАПРЕЩЕНО — нет description
+#[Group(name: 'Payments', weight: 1)]
+
+// ❌ ЗАПРЕЩЕНО — нет weight
+#[Group(name: 'Payments', description: 'Payment operations')]
+
+// ❌ ЗАПРЕЩЕНО — weight не уникален (конфликт с другой группой)
 ```
 
-`weight` определяет порядок групп в сайдбаре (меньше = выше). Группы с одинаковым weight сортируются по имени.
+**Правила для `description`:**
+- Описывает НАЗНАЧЕНИЕ всей группы, не перечисляет CRUD-операции
+- 1-2 предложения, краткие и понятные
+- На английском языке
+- Описывает БИЗНЕС-НАЗНАЧЕНИЕ, а не техническую реализацию
+
+**Правила для `weight`:**
+- Каждая группа имеет УНИКАЛЬНЫЙ weight
+- Merchant API: 1-9 (основные операции, по важности)
+- Admin API: 10-19 (с префиксом `Admin >` в name)
+- Служебные: 20+ (webhooks, health и т.п.)
 
 ### PHPDoc — на каждый метод
 
-Первая строка = **summary** (название эндпоинта в сайдбаре). Остальной текст = **description** (подробное описание).
+**ОБЯЗАТЕЛЬНЫ обе части: summary И description.**
 
 ```php
 /**
- * List customers
- *
- * Retrieve a paginated list of customers for the current application.
- * Supports filtering by email, name, status and external_id.
+ * Create payment intent                          ← summary (название в сайдбаре)
+ *                                                 ← пустая строка-разделитель
+ * Creates a new payment intent for the merchant.  ← description (подробности)
+ * Optionally confirm immediately by setting       ← продолжение description
+ * confirm=true with payment method data.
  */
-public function index(Request $request): JsonResponse
+```
+
+**Правила для Summary (1-я строка):**
+- Начинается с глагола: `List`, `Create`, `Get`, `Update`, `Delete`, `Confirm`, `Capture`, `Cancel`, `Revoke`, `Export`
+- **БЕЗ точки в конце**
+- **БЕЗ артикля "a/an/the"** перед существительным: `Create customer`, НЕ `Create a customer`
+- Максимум 60 символов
+- Это то, что видно в сайдбаре — должно быть кратким и понятным
+
+**Правила для Description (остальные строки):**
+- Описывает БИЗНЕС-ПОВЕДЕНИЕ, не техническую реализацию
+- Указывает side-effects: "Creates a snapshot version", "Disassociates linked payment methods"
+- Указывает ограничения: "Amount must not exceed the original payment", "Email must be unique per merchant"
+- Указывает предусловия: "Payment must be in requires_capture status"
+- Если есть soft-delete — указать явно
+- На английском языке
+
+```php
+// ❌ ЗАПРЕЩЕНО — нет description
+/**
+ * Create payment intent
+ */
+
+// ❌ ЗАПРЕЩЕНО — точка в конце summary
+/**
+ * Create a payment intent.
+ */
+
+// ❌ ЗАПРЕЩЕНО — техническое описание
+/**
+ * Create payment intent
+ *
+ * Inserts a row into payment_intents table with the given attributes.
+ */
+
+// ❌ ЗАПРЕЩЕНО — дублирует URL
+/**
+ * POST /api/v1/payments
+ */
+
+// ✅ Правильно
+/**
+ * Create payment intent
+ *
+ * Creates a new payment intent for the authenticated merchant.
+ * Optionally confirm immediately by setting confirm=true and providing payment method data.
+ */
 ```
 
 ### `#[QueryParameter]` — для фильтров и пагинации
 
-Для каждого `$request->input()` / `$request->has()` в методе.
+Для КАЖДОГО параметра запроса: `$request->input()`, `$request->has()`, фильтры Spatie QueryBuilder.
 
 ```php
 use Dedoc\Scramble\Attributes\QueryParameter;
 
+// Обычный параметр с type и description
 #[QueryParameter('filter[email]', type: 'string', description: 'Filter by email (partial match)')]
-#[QueryParameter('filter[name]', type: 'string', description: 'Filter by name (partial match)')]
-#[QueryParameter('filter[status]', type: 'string', description: 'Filter by status', enum: ['active', 'suspended', 'inactive'])]
-#[QueryParameter('filter[external_id]', type: 'string', description: 'Filter by external ID (exact match)')]
-#[QueryParameter('sort', type: 'string', description: 'Sort fields (- for DESC)', example: '-created_at')]
+
+// Параметр с ограниченным набором значений — ОБЯЗАТЕЛЬНО enum
+#[QueryParameter('filter[status]', type: 'string', description: 'Filter by payment status', enum: ['requires_payment_method', 'requires_confirmation', 'processing', 'succeeded', 'canceled'])]
+
+// Параметр с примером значения
+#[QueryParameter('filter[currency]', type: 'string', description: 'Filter by currency (ISO 4217)', example: 'USD')]
+
+// Числовой параметр
+#[QueryParameter('filter[amount_min]', type: 'integer', description: 'Minimum amount in minor units')]
+
+// Дата
+#[QueryParameter('filter[from]', type: 'string', description: 'Start date (YYYY-MM-DD)', example: '2026-01-01')]
+
+// Сортировка
+#[QueryParameter('sort', type: 'string', description: 'Sort field (prefix - for DESC)', example: '-created_at')]
+
+// Пагинация
 #[QueryParameter('page[size]', type: 'integer', description: 'Items per page (max 100)', example: 20)]
 #[QueryParameter('page[number]', type: 'integer', description: 'Page number', example: 1)]
-#[QueryParameter('include', type: 'string', description: 'Include related resources', example: 'relatedModel')]
-public function index(Request $request)
+
+// Включение связей
+#[QueryParameter('include', type: 'string', description: 'Include related resources (comma-separated)', example: 'customer,connector')]
+```
+
+**Когда использовать `enum:`:**
+- Когда параметр принимает **фиксированный набор значений** (статусы, типы, режимы)
+- Значения берутся из PHP Enum (перечисли все `->value`)
+- `enum:` задаёт массив допустимых значений: `enum: ['active', 'suspended', 'inactive']`
+
+**ЗАПРЕЩЕНО:**
+```php
+// ❌ Нет description
+#[QueryParameter('filter[status]', type: 'string')]
+
+// ❌ Есть фиксированные значения, но нет enum
+#[QueryParameter('filter[status]', type: 'string', description: 'Filter by status')]
+// при том что статус может быть только active/suspended/inactive
 ```
 
 ### `#[PathParameter]` — для параметров URL
 
-Для каждого `{param}` в route. Всегда указывай `example` с форматом public key.
+Для КАЖДОГО `{param}` в route. **ОБЯЗАТЕЛЬНО** указывать `description` и `example`.
 
 ```php
 use Dedoc\Scramble\Attributes\PathParameter;
 
-#[PathParameter('key', description: 'Customer public key', example: 'cust_01jd5x7k3m9p2q4r6s8t0v')]
-public function show(Request $request, string $key): JsonResponse
+#[PathParameter('paymentKey', description: 'Payment public key', example: 'pay_01jd5x7k3m9p2q4r6s8t0v')]
+#[PathParameter('merchantKey', description: 'Merchant account public key', example: 'mca_01jd5x7k3m9p2q4r6s8t0v')]
+#[PathParameter('connectorKey', description: 'Connector public key', example: 'conn_01jd5x7k3m9p2q4r6s8t0v')]
+```
+
+**Правила:**
+- `example` — всегда в формате `{prefix}_{ulid}`, используй реальный формат ключей проекта
+- Имя параметра совпадает с именем в route: `{paymentKey}` → `'paymentKey'`
+- Если метод принимает несколько path-параметров (вложенные ресурсы) — описать ВСЕ
+
+```php
+// ❌ ЗАПРЕЩЕНО — нет example
+#[PathParameter('paymentKey', description: 'Payment public key')]
+
+// ❌ ЗАПРЕЩЕНО — нет PathParameter вообще, хотя route имеет {paymentKey}
+public function show(string $paymentKey): JsonResponse
 ```
 
 ### `#[Response]` — для всех HTTP-кодов
 
-Описывай **каждый** возможный HTTP-код, который метод может вернуть.
+Описывать **КАЖДЫЙ** возможный HTTP-код ответа метода.
 
 ```php
 use Dedoc\Scramble\Attributes\Response;
 
-#[Response(200, description: 'Paginated customer list')]
-public function index(Request $request): JsonResponse
+// index — только 200
+#[Response(200, description: 'Paginated payment list')]
 
-#[Response(201, description: 'Customer created successfully')]
-#[Response(409, description: 'Customer with this email already exists')]
+// store — 201 + ошибки
+#[Response(201, description: 'Payment intent created')]
 #[Response(422, description: 'Validation error')]
-public function store(Request $request): JsonResponse
 
-#[Response(204, description: 'Customer deactivated')]
-#[Response(404, description: 'Customer not found')]
-public function destroy(Request $request, string $key): JsonResponse
+// show — 200 + not found
+#[Response(200, description: 'Payment intent details')]
+#[Response(404, description: 'Payment not found')]
+
+// update — 200 + not found + validation
+#[Response(200, description: 'Payment updated')]
+#[Response(404, description: 'Payment not found')]
+#[Response(422, description: 'Validation error')]
+
+// destroy — 204 + not found
+#[Response(204, description: 'Payment deleted')]
+#[Response(404, description: 'Payment not found')]
+
+// confirm/capture — доменные ошибки
+#[Response(200, description: 'Payment confirmed')]
+#[Response(404, description: 'Payment not found')]
+#[Response(409, description: 'Payment already confirmed')]
+#[Response(422, description: 'Validation error')]
 ```
+
+**Стандартные коды по типу метода:**
+
+| Метод | Обязательные коды |
+|-------|-------------------|
+| `index` | 200 |
+| `store` | 201, 422 |
+| `show` | 200, 404 |
+| `update` | 200, 404, 422 |
+| `destroy` | 204, 404 |
+
+Дополнительно: 401 (если отдельная аутентификация), 403 (авторизация), 409 (конфликт).
 
 ### `#[BodyParameter]` — для нетипизированных полей тела
 
@@ -99,7 +255,7 @@ Scramble автоматически выводит тело из `$request->vali
 use Dedoc\Scramble\Attributes\BodyParameter;
 
 #[BodyParameter('meta_data', type: 'object', description: 'Arbitrary key-value metadata')]
-#[BodyParameter('profile_data', type: 'object', description: 'Customer profile fields')]
+#[BodyParameter('rules', type: 'array', description: 'Array of routing rule conditions')]
 public function store(Request $request): JsonResponse
 ```
 
@@ -114,6 +270,8 @@ use Dedoc\Scramble\Attributes\Header;
 public function store(Request $request): JsonResponse
 ```
 
+---
+
 ## Полный шаблон контроллера
 
 ```php
@@ -123,12 +281,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Http\Controllers\Api\Controller;
 use App\Http\Requests\Customer\StoreCustomerRequest;
 use App\Http\Requests\Customer\UpdateCustomerRequest;
-use App\Http\Resources\Customer\CustomerCollection;
-use App\Http\Resources\Customer\CustomerResource;
-use App\Models\Customer;
+use App\Http\Resources\CustomerResource;
 use App\Services\CustomerService;
 use Dedoc\Scramble\Attributes\Group;
 use Dedoc\Scramble\Attributes\PathParameter;
@@ -136,8 +291,9 @@ use Dedoc\Scramble\Attributes\QueryParameter;
 use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controller;
 
-#[Group('Customers', description: 'Customer management for the current application', weight: 2)]
+#[Group(name: 'Customers', description: 'Manage customers and their data for the authenticated merchant', weight: 2)]
 final class CustomerController extends Controller
 {
     public function __construct(
@@ -154,34 +310,27 @@ final class CustomerController extends Controller
     #[QueryParameter('filter[name]', type: 'string', description: 'Filter by name (partial match)')]
     #[QueryParameter('filter[status]', type: 'string', description: 'Filter by status', enum: ['active', 'suspended', 'inactive'])]
     #[QueryParameter('filter[external_id]', type: 'string', description: 'Filter by external ID (exact match)')]
-    #[QueryParameter('sort', type: 'string', description: 'Sort fields (- for DESC)', example: '-created_at')]
+    #[QueryParameter('sort', type: 'string', description: 'Sort field (prefix - for DESC)', example: '-created_at')]
     #[QueryParameter('page[size]', type: 'integer', description: 'Items per page (max 100)', example: 20)]
     #[QueryParameter('page[number]', type: 'integer', description: 'Page number', example: 1)]
-    #[QueryParameter('include', type: 'string', description: 'Include related resources', example: 'charges')]
     #[Response(200, description: 'Paginated customer list')]
-    public function index(Request $request): CustomerCollection
+    public function index(Request $request): JsonResponse
     {
-        $customers = $this->service->list($request->user());
-        return new CustomerCollection($customers);
+        // ...
     }
 
     /**
      * Create customer
      *
      * Create a new customer in the current application.
-     * Email must be unique within the app scope.
+     * Email must be unique within the merchant scope.
      */
     #[Response(201, description: 'Customer created')]
     #[Response(409, description: 'Customer with this email already exists')]
     #[Response(422, description: 'Validation error')]
-    public function store(StoreCustomerRequest $request)
+    public function store(StoreCustomerRequest $request): JsonResponse
     {
-        $customer = $this->service->create($request->user(), $request->toDto());
-
-        return CustomerResource::make($customer)
-            ->response()
-            ->setStatusCode(201)
-            ->header('Location', "/api/v1/customers/{$customer->key}");
+        // ...
     }
 
     /**
@@ -189,12 +338,12 @@ final class CustomerController extends Controller
      *
      * Retrieve a single customer by their public key.
      */
-    #[PathParameter('key', description: 'Customer public key', example: 'cust_01jd5x7k3m9p2q4r6s8t0v')]
+    #[PathParameter('customerKey', description: 'Customer public key', example: 'cust_01jd5x7k3m9p2q4r6s8t0v')]
     #[Response(200, description: 'Customer details')]
     #[Response(404, description: 'Customer not found')]
-    public function show(Customer $customer): CustomerResource
+    public function show(string $customerKey): JsonResponse
     {
-        return CustomerResource::make($customer);
+        // ...
     }
 
     /**
@@ -202,15 +351,13 @@ final class CustomerController extends Controller
      *
      * Update customer fields. Only provided fields are changed.
      */
-    #[PathParameter('key', description: 'Customer public key', example: 'cust_01jd5x7k3m9p2q4r6s8t0v')]
+    #[PathParameter('customerKey', description: 'Customer public key', example: 'cust_01jd5x7k3m9p2q4r6s8t0v')]
     #[Response(200, description: 'Customer updated')]
     #[Response(404, description: 'Customer not found')]
     #[Response(422, description: 'Validation error')]
-    public function update(UpdateCustomerRequest $request, Customer $customer)
+    public function update(UpdateCustomerRequest $request, string $customerKey): JsonResponse
     {
-        $customer = $this->service->update($customer, $request->toDto());
-
-        return CustomerResource::make($customer);
+        // ...
     }
 
     /**
@@ -219,128 +366,146 @@ final class CustomerController extends Controller
      * Soft-delete: sets the customer status to inactive.
      * The customer record is preserved but no longer active.
      */
-    #[PathParameter('key', description: 'Customer public key', example: 'cust_01jd5x7k3m9p2q4r6s8t0v')]
+    #[PathParameter('customerKey', description: 'Customer public key', example: 'cust_01jd5x7k3m9p2q4r6s8t0v')]
     #[Response(204, description: 'Customer deactivated')]
     #[Response(404, description: 'Customer not found')]
-    public function destroy(Customer $customer): \Symfony\Component\HttpFoundation\Response
+    public function destroy(string $customerKey): JsonResponse
     {
-        $this->service->deactivate($customer);
-
-        return response()->noContent();
+        // ...
     }
 }
 ```
 
-## Рекомендуемый weight для групп
-
-| Group | weight | Описание |
-|-------|--------|----------|
-| Application | 0 | App management |
-| Customers | 1 | Customer CRUD |
-| Plans | 2 | Billing plans |
-| Metrics | 3 | Usage metrics |
-| Charges | 4 | Plan charges |
-| API Keys | 5 | Token management |
-| Webhooks | 6 | Webhook endpoints |
-| Modules | 7 | Module toggles |
-| Internal | 99 | Inter-service API (если включён) |
+---
 
 ## PHPDoc — правила описаний
 
 ### Summary (первая строка)
-- Начинай с глагола: `List`, `Create`, `Get`, `Update`, `Delete`, `Archive`, `Duplicate`, `Calculate`
-- Без точки в конце
+- Начинай с глагола: `List`, `Create`, `Get`, `Update`, `Delete`, `Archive`, `Confirm`, `Capture`, `Cancel`, `Revoke`, `Export`, `Calculate`
+- **Без точки** в конце
+- **Без артикля** "a/an/the"
 - Макс 60 символов
 
 ### Description (остальные строки)
 - Описывай бизнес-поведение, не техническую реализацию
 - Укажи side-effects: "Creates a snapshot version", "Automatically enables dependent modules"
 - Укажи ограничения: "Email must be unique per app", "Max 100 items per page"
+- Укажи предусловия статуса: "Payment must be in requires_capture status"
 - Если есть soft-delete — укажи это явно
 
 ### Примеры хороших описаний
 
 ```php
 /**
- * Archive plan
+ * Capture payment intent
  *
- * Set plan status to archived. Archived plans cannot be assigned
- * to new subscriptions but remain active for existing ones.
- * Creates a new plan version snapshot.
+ * Captures a previously authorized payment intent. Supports partial capture
+ * by specifying amount_to_capture less than the authorized amount.
+ * Payment must be in requires_capture status.
  */
 
 /**
- * Calculate plan pricing
+ * Create connector
  *
- * Calculate the total cost for a plan based on provided usage metrics.
- * Applies all charge models (standard, graduated, volume, package, percentage)
- * and optional modifiers (discounts, free units, overrides).
- * Returns itemized breakdown per charge and total amount.
+ * Registers a new payment connector (PSP) for the specified merchant account.
+ * Connector credentials are encrypted at rest.
  */
 
 /**
- * Enable module
+ * Revoke API key
  *
- * Activate a module for the current application.
- * Enabling 'invoicing' automatically enables its dependencies:
- * wallets, payments, and plans.
+ * Revokes an existing API key. Once revoked, it can no longer authenticate requests.
+ * This action is irreversible.
  */
 ```
+
+---
 
 ## Антипаттерны
 
 ```php
-// ❌ Нет PHPDoc — Scramble покажет только "GET /api/v1/customers" без описания
-public function index(Request $request): JsonResponse
+// ❌ Нет PHPDoc — Scramble покажет только "POST /api/v1/payments" без описания
+public function store(Request $request): JsonResponse
+
+// ❌ Summary с точкой — некрасиво в сайдбаре
+/**
+ * Create a payment intent.
+ */
+
+// ❌ PHPDoc без description — в доке только заголовок, нет объяснения
+/**
+ * Create payment intent
+ */
 
 // ❌ PHPDoc повторяет URL — бесполезно
 /**
- * GET /api/v1/customers
+ * POST /api/v1/payments
  */
-public function index(Request $request): JsonResponse
 
 // ❌ Техническое описание вместо бизнес-смысла
 /**
- * Queries the customers table with optional where clauses
+ * Queries the payment_intents table with optional where clauses
  */
-public function index(Request $request): JsonResponse
 
-// ✅ Бизнес-описание
+// ❌ Group без description — пустая секция в сайдбаре
+#[Group(name: 'Payments', weight: 1)]
+
+// ❌ Group без weight — порядок в меню случайный
+#[Group(name: 'Payments', description: 'Payment operations')]
+
+// ❌ PathParameter без example — нет примера формата ключа
+#[PathParameter('paymentKey', description: 'Payment public key')]
+
+// ❌ Метод с path-параметром без #[PathParameter]
+public function show(string $paymentKey): JsonResponse
+
+// ❌ QueryParameter для статуса без enum — непонятно какие значения допустимы
+#[QueryParameter('filter[status]', type: 'string', description: 'Filter by status')]
+
+// ❌ Нет #[Response] — документация ответов пустая
+public function store(Request $request): JsonResponse
+```
+
+```php
+// ✅ Полностью оформленный метод
 /**
- * List customers
+ * Create payment intent
  *
- * Retrieve a paginated list of customers for the current application.
- * Supports filtering by email, name, status and external_id.
+ * Creates a new payment intent for the authenticated merchant.
+ * Optionally confirm immediately by setting confirm=true and providing payment method data.
  */
-#[QueryParameter('filter[email]', type: 'string', description: 'Filter by email (partial match)')]
-#[QueryParameter('page[size]', type: 'integer', description: 'Items per page (max 100)', example: 20)]
-#[Response(200, description: 'Paginated customer list')]
-public function index(Request $request)
-```
-
-```php
-// ❌ Не указаны query-параметры — разработчик не знает о фильтрах
-public function index(Request $request): JsonResponse
-{
-    if ($request->has('status')) { ... }  // скрытый параметр!
-}
-
-// ✅ Все параметры описаны атрибутами
-#[QueryParameter('status', type: 'string', description: 'Filter by status', enum: ['active', 'archived'])]
-public function index(Request $request): JsonResponse
-```
-
-```php
-// ❌ Нет #[Response] для ошибок — документация неполная
-public function store(Request $request): JsonResponse
-{
-    // может вернуть 409, но в доке этого нет
-    if ($existing) { return response()->json([...], 409); }
-}
-
-// ✅ Все коды описаны
-#[Response(201, description: 'Created')]
-#[Response(409, description: 'Email conflict')]
+#[Response(201, description: 'Payment intent created')]
 #[Response(422, description: 'Validation error')]
-public function store(Request $request): JsonResponse
+public function store(StorePaymentRequest $request): JsonResponse
+```
+
+```php
+// ✅ Метод с path-параметром
+/**
+ * Get payment intent
+ *
+ * Retrieve the details of a payment intent that belongs to the authenticated merchant.
+ */
+#[PathParameter('paymentKey', description: 'Payment public key', example: 'pay_01jd5x7k3m9p2q4r6s8t0v')]
+#[Response(200, description: 'Payment intent details')]
+#[Response(404, description: 'Payment not found')]
+public function show(string $paymentKey): JsonResponse
+```
+
+```php
+// ✅ index с фильтрами и enum
+/**
+ * List payments
+ *
+ * Retrieve a paginated list of payments for the current merchant.
+ * Supports filtering by status, currency, connector, amount range and date range.
+ */
+#[QueryParameter('filter[status]', type: 'string', description: 'Filter by payment status', enum: ['requires_payment_method', 'requires_confirmation', 'processing', 'succeeded', 'canceled'])]
+#[QueryParameter('filter[currency]', type: 'string', description: 'Filter by currency (ISO 4217)', example: 'USD')]
+#[QueryParameter('filter[capture_method]', type: 'string', description: 'Filter by capture method', enum: ['automatic', 'manual'])]
+#[QueryParameter('sort', type: 'string', description: 'Sort field (prefix - for DESC)', example: '-created_at')]
+#[QueryParameter('page[size]', type: 'integer', description: 'Items per page (max 100)', example: 20)]
+#[QueryParameter('page[number]', type: 'integer', description: 'Page number', example: 1)]
+#[Response(200, description: 'Paginated payment list')]
+public function index(Request $request): JsonResponse
 ```
