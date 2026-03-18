@@ -185,7 +185,7 @@ final class CreateOrderData extends Data
 ## API Resource — форматирование
 
 ```php
-// В {Entity}Resource::toArray()
+// В {Entity}Resource::toAttributes()
 
 'total_amount' => [
     'value' => $this->total_amount->getMinorAmount()->toInt(),  // 15000

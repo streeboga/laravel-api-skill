@@ -9,6 +9,54 @@
 - Обрабатывай инвалидацию кэша здесь
 - Принимай DTOs, возвращай Models или типизированные данные
 - НИКОГДА не обращайся к БД напрямую — только через Repository
+- **Дроби по бизнес-назначению** — один сервис = одна зона ответственности
+- Максимум ~200 строк на сервис — если больше, выдели подсервис
+
+## Дробление сервисов (Anti-God-Class)
+
+Один `{Entity}Service` для CRUD — это минимум. Для сложных доменов дроби:
+
+```
+app/Services/
+├── Customer/
+│   ├── CustomerService.php          # CRUD: create, update, delete, list, find
+│   ├── CustomerStatusService.php    # activate, suspend, archive, restore
+│   └── CustomerExportService.php    # generateReport, exportCsv, exportPdf
+├── Order/
+│   ├── OrderService.php             # CRUD
+│   ├── OrderPaymentService.php      # charge, refund, retryPayment
+│   └── OrderFulfillmentService.php  # ship, deliver, cancel, returnOrder
+```
+
+**Когда дробить:**
+- Сервис >200 строк → дроби
+- Группа методов имеет свои зависимости (другой gateway/repository) → дроби
+- Методы описывают отдельный бизнес-процесс (оплата vs доставка) → дроби
+
+**Когда НЕ дробить:**
+- 5 CRUD-методов по 10 строк = 50 строк → оставь в одном сервисе
+- Методы тесно связаны и используют одни зависимости → оставь
+
+**Сервисы могут вызывать другие сервисы:**
+```php
+final readonly class OrderPaymentService
+{
+    public function __construct(
+        private OrderRepositoryInterface $orderRepository,
+        private InvoiceService $invoiceService,
+        private PaymentGatewayInterface $paymentGateway,
+    ) {}
+
+    public function charge(Order $order): PaymentResult
+    {
+        // ...
+        $invoice = $this->invoiceService->createForOrder($order);
+        // ...
+    }
+}
+```
+
+**Запрещено:** циклические зависимости (A→B→A). Если нужно — выдели общую логику в третий сервис.
 
 ## Шаблон: {Entity}Service
 
@@ -107,6 +155,134 @@ private function invalidateUserCache(User $user): void
 
 Инвалидируй кэш после create/update/delete.
 
+## Диспетчинг событий
+
+Сервис — единственное место для вызова событий. События отделяют побочные эффекты (уведомления, аналитика, вебхуки) от основной логики:
+
+```php
+use App\Events\{Entity}Created;
+use App\Events\{Entity}Updated;
+use App\Events\{Entity}Deleted;
+
+// В методе create():
+event(new {Entity}Created(${entity}));
+
+// В методе update():
+event(new {Entity}Updated(${entity}));
+
+// В методе delete():
+event(new {Entity}Deleted(${entity}));
+```
+
+### Шаблон: Event
+
+```php
+<?php
+// app/Events/{Entity}Created.php
+
+declare(strict_types=1);
+
+namespace App\Events;
+
+use App\Models\{Entity};
+use Illuminate\Foundation\Events\Dispatchable;
+use Illuminate\Queue\SerializesModels;
+
+final readonly class {Entity}Created
+{
+    use Dispatchable, SerializesModels;
+
+    public function __construct(
+        public {Entity} ${entity},
+    ) {}
+}
+```
+
+### Шаблон: Listener (queued)
+
+```php
+<?php
+// app/Listeners/Send{Entity}CreatedNotification.php
+
+declare(strict_types=1);
+
+namespace App\Listeners;
+
+use App\Events\{Entity}Created;
+use Illuminate\Contracts\Queue\ShouldQueue;
+
+final class Send{Entity}CreatedNotification implements ShouldQueue
+{
+    public function handle({Entity}Created $event): void
+    {
+        // Отправить уведомление, вебхук, и т.д.
+    }
+}
+```
+
+Auto-discovery событий включён по умолчанию в Laravel 11 — регистрация в EventServiceProvider не нужна.
+
+## Диспетчинг Jobs (очереди)
+
+Для тяжёлых операций (генерация отчётов, отправка вебхуков, обработка данных) используй Jobs:
+
+```php
+<?php
+// app/Jobs/Process{Entity}Export.php
+
+declare(strict_types=1);
+
+namespace App\Jobs;
+
+use App\Models\{Entity};
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+
+final class Process{Entity}Export implements ShouldQueue
+{
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    public int $tries = 3;
+    public int $backoff = 60;
+
+    public function __construct(
+        private readonly {Entity} ${entity},
+    ) {}
+
+    public function handle(): void
+    {
+        // Тяжёлая обработка
+    }
+
+    public function failed(\Throwable $exception): void
+    {
+        // Логирование ошибки — НИКОГДА не глотай ошибки молча
+        logger()->error('Process{Entity}Export failed', [
+            '{entity}_id' => $this->{entity}->id,
+            'error' => $exception->getMessage(),
+        ]);
+    }
+}
+```
+
+Диспетчинг из сервиса:
+
+```php
+public function requestExport({Entity} ${entity}): void
+{
+    Process{Entity}Export::dispatch(${entity})->onQueue('exports');
+}
+```
+
+**Правила для Jobs:**
+- Всегда определяй `$tries` и `$backoff`
+- Всегда реализуй `failed()` — никогда не глотай ошибки молча
+- Jobs должны быть **идемпотентными** (безопасно повторять)
+- Используй `onQueue()` для разделения очередей по приоритету
+
 ## Переходы статусов
 
 Используй методы Enum для проверки статусов:
@@ -162,16 +338,22 @@ final class {Entity}FilterData extends Data
 
     public static function fromRequest(Request $request): self
     {
+        // JSON:API query parameter format:
+        // ?filter[status]=active&sort=-created_at&include=tags&page[size]=20&page[number]=1
+        $sort = $request->input('sort', '-created_at');
+        $sortDirection = str_starts_with($sort, '-') ? 'desc' : 'asc';
+        $sortBy = ltrim($sort, '-');
+
         return new self(
-            status: $request->input('status'),
-            search: $request->input('search'),
-            sortBy: $request->input('sort_by', 'created_at'),
-            sortDirection: $request->input('sort_direction', 'desc'),
-            includes: $request->filled('includes')
-                ? explode(',', $request->input('includes'))
+            status: $request->input('filter.status'),
+            search: $request->input('filter.search'),
+            sortBy: $sortBy,
+            sortDirection: $sortDirection,
+            includes: $request->filled('include')
+                ? explode(',', $request->input('include'))
                 : [],
-            perPage: (int) $request->input('per_page', 20),
-            page: (int) $request->input('page', 1),
+            perPage: (int) $request->input('page.size', 20),
+            page: (int) $request->input('page.number', 1),
         );
     }
 }

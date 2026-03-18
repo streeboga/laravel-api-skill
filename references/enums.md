@@ -160,6 +160,7 @@ namespace App\Enums;
 enum CacheKey: string
 {
     case UserOrders = 'user:%d:orders';
+    case UserStatistics = 'user:%d:statistics';
     case OrderDetails = 'order:%s:details';
     case ProductList = 'products:list:%s';
 
@@ -172,6 +173,7 @@ enum CacheKey: string
     {
         return match ($this) {
             self::UserOrders => CacheTtl::FiveMinutes,
+            self::UserStatistics => CacheTtl::FiveMinutes,
             self::OrderDetails => CacheTtl::OneHour,
             self::ProductList => CacheTtl::SixHours,
         };

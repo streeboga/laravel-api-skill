@@ -150,16 +150,18 @@ final class CustomerController extends Controller
      * Retrieve a paginated list of customers for the current application.
      * Supports filtering by email, name, status and external_id.
      */
-    #[QueryParameter('email', type: 'string', description: 'Filter by email (partial match)')]
-    #[QueryParameter('name', type: 'string', description: 'Filter by name (partial match)')]
-    #[QueryParameter('status', type: 'string', description: 'Filter by status', enum: ['active', 'suspended', 'inactive'])]
-    #[QueryParameter('external_id', type: 'string', description: 'Filter by external ID (exact match)')]
-    #[QueryParameter('per_page', type: 'integer', description: 'Items per page (max 100)', example: 20)]
+    #[QueryParameter('filter[email]', type: 'string', description: 'Filter by email (partial match)')]
+    #[QueryParameter('filter[name]', type: 'string', description: 'Filter by name (partial match)')]
+    #[QueryParameter('filter[status]', type: 'string', description: 'Filter by status', enum: ['active', 'suspended', 'inactive'])]
+    #[QueryParameter('filter[external_id]', type: 'string', description: 'Filter by external ID (exact match)')]
+    #[QueryParameter('sort', type: 'string', description: 'Sort fields (- for DESC)', example: '-created_at')]
+    #[QueryParameter('page[size]', type: 'integer', description: 'Items per page (max 100)', example: 20)]
+    #[QueryParameter('page[number]', type: 'integer', description: 'Page number', example: 1)]
+    #[QueryParameter('include', type: 'string', description: 'Include related resources', example: 'charges')]
     #[Response(200, description: 'Paginated customer list')]
     public function index(Request $request): CustomerCollection
     {
-        $filters = CustomerFilterData::fromRequest($request);
-        $customers = $this->service->list($request->user(), $filters);
+        $customers = $this->service->list($request->user());
         return new CustomerCollection($customers);
     }
 
@@ -172,10 +174,14 @@ final class CustomerController extends Controller
     #[Response(201, description: 'Customer created')]
     #[Response(409, description: 'Customer with this email already exists')]
     #[Response(422, description: 'Validation error')]
-    public function store(StoreCustomerRequest $request): JsonResponse
+    public function store(StoreCustomerRequest $request)
     {
         $customer = $this->service->create($request->user(), $request->toDto());
-        return $this->responseCreated(new CustomerResource($customer));
+
+        return CustomerResource::make($customer)
+            ->response()
+            ->setStatusCode(201)
+            ->header('Location', "/api/v1/customers/{$customer->key}");
     }
 
     /**
@@ -186,9 +192,9 @@ final class CustomerController extends Controller
     #[PathParameter('key', description: 'Customer public key', example: 'cust_01jd5x7k3m9p2q4r6s8t0v')]
     #[Response(200, description: 'Customer details')]
     #[Response(404, description: 'Customer not found')]
-    public function show(Request $request, Customer $customer): CustomerResource
+    public function show(Customer $customer): CustomerResource
     {
-        return new CustomerResource($customer->load(['authentications']));
+        return CustomerResource::make($customer);
     }
 
     /**
@@ -200,10 +206,11 @@ final class CustomerController extends Controller
     #[Response(200, description: 'Customer updated')]
     #[Response(404, description: 'Customer not found')]
     #[Response(422, description: 'Validation error')]
-    public function update(UpdateCustomerRequest $request, Customer $customer): JsonResponse
+    public function update(UpdateCustomerRequest $request, Customer $customer)
     {
         $customer = $this->service->update($customer, $request->toDto());
-        return $this->responseSuccess(new CustomerResource($customer));
+
+        return CustomerResource::make($customer);
     }
 
     /**
@@ -215,10 +222,11 @@ final class CustomerController extends Controller
     #[PathParameter('key', description: 'Customer public key', example: 'cust_01jd5x7k3m9p2q4r6s8t0v')]
     #[Response(204, description: 'Customer deactivated')]
     #[Response(404, description: 'Customer not found')]
-    public function destroy(Customer $customer): JsonResponse
+    public function destroy(Customer $customer): \Symfony\Component\HttpFoundation\Response
     {
         $this->service->deactivate($customer);
-        return $this->responseNoContent();
+
+        return response()->noContent();
     }
 }
 ```
@@ -304,10 +312,10 @@ public function index(Request $request): JsonResponse
  * Retrieve a paginated list of customers for the current application.
  * Supports filtering by email, name, status and external_id.
  */
-#[QueryParameter('email', type: 'string', description: 'Filter by email (partial match)')]
-#[QueryParameter('per_page', type: 'integer', description: 'Items per page (max 100)', example: 20)]
+#[QueryParameter('filter[email]', type: 'string', description: 'Filter by email (partial match)')]
+#[QueryParameter('page[size]', type: 'integer', description: 'Items per page (max 100)', example: 20)]
 #[Response(200, description: 'Paginated customer list')]
-public function index(Request $request): JsonResponse
+public function index(Request $request)
 ```
 
 ```php

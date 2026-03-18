@@ -29,7 +29,7 @@ QueryBuilder (построение запросов, scopes)
 Model → Database
 
 Ответ:
-Model/Collection → API Resource → JSON Response
+Model/Collection → JsonApiResource → JSON:API Response
 ```
 
 ## Политика DB Доступа (обязательная)
@@ -45,72 +45,45 @@ Model/Collection → API Resource → JSON Response
 
 ```
 app/
+├── Builders/                        # QueryBuilder classes
+│   └── {Entity}QueryBuilder.php
+├── Contracts/
+│   └── Enums/                       # Enum interfaces (HasLabel, HasColor, HasIcon)
+├── DataTransferObjects/             # DTOs via Spatie Data
+│   └── {Entity}/
+│       ├── Create{Entity}Data.php
+│       ├── Update{Entity}Data.php
+│       └── {Entity}FilterData.php
+├── Enums/                           # All constants as PHP Enums
 ├── Http/
 │   ├── Controllers/
 │   │   └── Api/
-│   │       ├── Controller.php (base)
-│   │       └── {Entity}Controller.php
+│   │       ├── Controller.php       # Base API controller
+│   │       └── V1/                  # Versioned controllers
+│   │           └── {Entity}Controller.php
+│   ├── Middleware/
+│   │   ├── ForceJsonApiContentType.php
+│   │   └── IdempotencyMiddleware.php
 │   ├── Requests/
 │   │   └── {Entity}/
 │   │       ├── Store{Entity}Request.php
 │   │       └── Update{Entity}Request.php
-│   ├── Resources/
-│   │   └── {Entity}Resource.php
-│   └── QueryBuilders/
-│       └── {Entity}QueryBuilder.php
+│   └── Resources/
+│       └── {Entity}Resource.php     # extends JsonApiResource
 ├── Models/
 │   └── {Entity}.php
+├── Repositories/
+│   ├── Contracts/                   # Repository interfaces
+│   │   └── {Entity}RepositoryInterface.php
+│   └── Eloquent/                    # Implementations
+│       └── {Entity}Repository.php
 ├── Services/
 │   └── {Entity}Service.php
-├── Repositories/
-│   ├── Interfaces/
-│   │   └── {Entity}RepositoryInterface.php
-│   └── {Entity}Repository.php
-├── Data/
-│   └── {Entity}Data.php (DTO)
 ├── Providers/
 │   ├── AppServiceProvider.php
 │   └── RepositoryServiceProvider.php
 └── Events/
     └── {Entity}Created.php
-```
-
-## Base API Controller
-
-```php
-<?php
-// app/Http/Controllers/Api/Controller.php
-
-namespace App\Http\Controllers\Api;
-
-use App\Http\Controllers\Controller as BaseController;
-use Essa\APIToolKit\Api\ApiResponse;
-
-abstract class Controller extends BaseController
-{
-    use ApiResponse;
-}
-```
-
-## Exception Handler Setup (Laravel 11+)
-
-```php
-<?php
-// app/Providers/AppServiceProvider.php
-
-namespace App\Providers;
-
-use Essa\APIToolKit\Exceptions\Handler;
-use Illuminate\Contracts\Debug\ExceptionHandler;
-use Illuminate\Support\ServiceProvider;
-
-class AppServiceProvider extends ServiceProvider
-{
-    public function register(): void
-    {
-        $this->app->bind(ExceptionHandler::class, Handler::class);
-    }
-}
 ```
 
 ## Repository Service Provider
@@ -128,208 +101,28 @@ use Illuminate\Support\ServiceProvider;
 final class RepositoryServiceProvider extends ServiceProvider
 {
     public array $bindings = [
-        // {Entity}RepositoryInterface::class => {Entity}Repository::class,
+        // \App\Repositories\Contracts\{Entity}RepositoryInterface::class => \App\Repositories\Eloquent\{Entity}Repository::class,
     ];
 }
 ```
 
 Зарегистрируйте в `bootstrap/providers.php` (Laravel 11).
 
-## Шаблон QueryBuilder
+## Шаблоны кода по слоям
 
-```php
-<?php
-// app/Http/QueryBuilders/{Entity}QueryBuilder.php
+Каждый слой имеет свой подробный reference-файл с шаблонами и правилами:
 
-namespace App\Http\QueryBuilders;
+| Слой | Reference файл |
+|------|---------------|
+| Controller | `references/controller.md` |
+| Service | `references/service-layer.md` |
+| Repository + QueryBuilder | `references/repository-layer.md` |
+| DTO + FormRequest | `references/dto.md` |
+| Model + Migration | `references/models.md` |
+| Enum | `references/enums.md` |
+| API Resource | `references/api-resources.md` |
+| API Documentation | `references/api-docs.md` |
+| Security + Middleware | `references/security.md` |
+| Testing | `references/testing.md` |
 
-use App\Models\{Entity};
-use Illuminate\Database\Eloquent\Builder;
-
-class {Entity}QueryBuilder
-{
-    public function __construct(private Builder $query = new {Entity}()) {}
-
-    public static function new(): self
-    {
-        return new self(({Entity}::query()));
-    }
-
-    public function getQuery(): Builder
-    {
-        return $this->query;
-    }
-
-    public function active(): self
-    {
-        $this->query->where('is_active', true);
-        return $this;
-    }
-
-    public function sortByName(): self
-    {
-        $this->query->orderBy('name', 'asc');
-        return $this;
-    }
-}
-```
-
-## Шаблон Repository Interface
-
-```php
-<?php
-// app/Repositories/Interfaces/{Entity}RepositoryInterface.php
-
-namespace App\Repositories\Interfaces;
-
-use App\Models\{Entity};
-use Illuminate\Pagination\Paginator;
-
-interface {Entity}RepositoryInterface
-{
-    public function all(): Paginator;
-    public function find(int $id): {Entity};
-    public function create(array $data): {Entity};
-    public function update(int $id, array $data): {Entity};
-    public function delete(int $id): bool;
-}
-```
-
-## Шаблон Repository
-
-```php
-<?php
-// app/Repositories/{Entity}Repository.php
-
-namespace App\Repositories;
-
-use App\Http\QueryBuilders\{Entity}QueryBuilder;
-use App\Models\{Entity};
-use App\Repositories\Interfaces\{Entity}RepositoryInterface;
-
-class {Entity}Repository implements {Entity}RepositoryInterface
-{
-    public function all()
-    {
-        return {Entity}QueryBuilder::new()
-            ->active()
-            ->sortByName()
-            ->getQuery()
-            ->paginate();
-    }
-
-    public function find(int $id): {Entity}
-    {
-        return {Entity}::findOrFail($id);
-    }
-
-    public function create(array $data): {Entity}
-    {
-        return {Entity}::create($data);
-    }
-
-    public function update(int $id, array $data): {Entity}
-    {
-        $model = $this->find($id);
-        $model->update($data);
-        return $model;
-    }
-
-    public function delete(int $id): bool
-    {
-        return $this->find($id)->delete();
-    }
-}
-```
-
-## Шаблон Service
-
-```php
-<?php
-// app/Services/{Entity}Service.php
-
-namespace App\Services;
-
-use App\Data\{Entity}Data;
-use App\Repositories\Interfaces\{Entity}RepositoryInterface;
-
-class {Entity}Service
-{
-    public function __construct(
-        private {Entity}RepositoryInterface $repository,
-    ) {}
-
-    public function list()
-    {
-        return $this->repository->all();
-    }
-
-    public function getById(int $id)
-    {
-        return $this->repository->find($id);
-    }
-
-    public function store({Entity}Data $data)
-    {
-        return $this->repository->create($data->toArray());
-    }
-
-    public function update(int $id, {Entity}Data $data)
-    {
-        return $this->repository->update($id, $data->toArray());
-    }
-
-    public function delete(int $id): bool
-    {
-        return $this->repository->delete($id);
-    }
-}
-```
-
-## Шаблон Controller
-
-```php
-<?php
-// app/Http/Controllers/Api/{Entity}Controller.php
-
-namespace App\Http\Controllers\Api;
-
-use App\Http\Requests\{Entity}\Store{Entity}Request;
-use App\Http\Requests\{Entity}\Update{Entity}Request;
-use App\Http\Resources\{Entity}Resource;
-use App\Services\{Entity}Service;
-
-class {Entity}Controller extends Controller
-{
-    public function __construct(private {Entity}Service $service) {}
-
-    public function index()
-    {
-        return {Entity}Resource::collection($this->service->list());
-    }
-
-    public function store(Store{Entity}Request $request)
-    {
-        $entity = $this->service->store($request->toDto());
-        return {Entity}Resource::make($entity)
-            ->response()
-            ->setStatusCode(201);
-    }
-
-    public function show(int $id)
-    {
-        return {Entity}Resource::make($this->service->getById($id));
-    }
-
-    public function update(int $id, Update{Entity}Request $request)
-    {
-        return {Entity}Resource::make($this->service->update($id, $request->toDto()));
-    }
-
-    public function destroy(int $id)
-    {
-        $this->service->delete($id);
-        return response()->noContent();
-    }
-}
-```
+**Важно:** При создании кода всегда сверяйтесь с конкретным reference-файлом для слоя. Шаблоны в этих файлах являются каноническими.

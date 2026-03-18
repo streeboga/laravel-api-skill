@@ -12,7 +12,7 @@
 - `toAttributes()` — основные поля (без id, type, relationships)
 - `toRelationships()` — lazy closures для связей
 - `toLinks()` — использует `Link::self(...)` (объект, не строку!)
-- Enums → `$this->status->value` (только value, не объект)
+- Enums → в JSON:API `attributes` возвращай `$this->status->value` (строку). Для UI-ориентированных эндпоинтов (admin panel, dashboard) допустимо возвращать rich object `{value, label, color, icon}` — см. `references/enums.md`
 - Даты → `$this->created_at->toIso8601String()`
 
 ## Шаблон: {Entity}Resource
@@ -135,7 +135,7 @@ return {Entity}Resource::make(${entity})
 ### Удаление (204 No Content)
 
 ```php
-return response()->json(null, 204);
+return response()->noContent();
 ```
 
 ### С дополнительными данными (additional)
@@ -215,7 +215,7 @@ return CustomerResource::make($customer)
     ->header('Location', "/api/v1/customers/{$customer->key}");
 
 // Удаление — 204
-return response()->json(null, 204);
+return response()->noContent();
 ```
 
 ## Антипаттерны

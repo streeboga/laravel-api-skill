@@ -12,22 +12,72 @@ This skill defines the architecture and code patterns for all Laravel API projec
 ## Core Architecture
 
 ```
-HTTP Request → Route → Middleware → Controller → Service → Repository → QueryBuilder → Model → DB
-Response    ← JsonApiResource      ← Service   ← Repository
+HTTP Request → Route → Middleware → Controller → Service → Repository → QueryBuilder (scopes) → Model → DB
+Response    ← JsonApiResource      ← Service   ← Repository ← QueryBuilder
 ```
 
 **Layers and responsibilities:**
 
 | Layer | Does | Does NOT |
 |-------|------|----------|
-| **Controller** | Accept request, call service, return response | Access DB, contain logic |
-| **Service** | Business logic, transactions, events, caching | Query DB directly |
-| **Repository** | CRUD operations via QueryBuilder | Contain business logic |
-| **QueryBuilder** | Build queries, scopes, filters, sorts | Contain CRUD or logic |
-| **Model** | Define relations, casts, accessors | Contain scopes (use QueryBuilder) |
+| **Controller** | Accept request, call **only Service**, return JsonApiResource | Access DB, inject Repository/Model, contain logic |
+| **Service** | Business logic, transactions, events, caching. Calls Repository | Query DB directly, grow into God Class (split by domain!) |
+| **Repository** | CRUD operations, delegates complex queries to QueryBuilder | Contain business logic |
+| **QueryBuilder** | All scopes, filters, sorts, eager loading, pagination | Contain CRUD or business logic |
+| **Model** | Define relations, casts, accessors. NO scopes (use QueryBuilder) | Contain `scopeXxx()` methods |
 | **DTO** | Type-safe data transfer between layers | — |
 | **JsonApiResource** | Transform model to JSON:API format | — |
 | **Enum** | All constants, statuses, cache keys | — |
+
+### Strict Layer Boundaries (CRITICAL)
+
+```
+Controller ──→ Service ONLY (never Repository, never Model)
+Service    ──→ Repository (never Model::query() directly)
+Repository ──→ QueryBuilder + Model
+```
+
+**Controller НЕ МОЖЕТ:**
+- Инжектировать Repository — только Service
+- Обращаться к Model — только через Service
+- Содержать `if/else` бизнес-логику — делегируй в Service
+
+**Service — дробление по бизнес-назначению:**
+
+Один сервис = одна зона ответственности. Если сервис растёт >200 строк — дроби:
+
+```
+app/Services/
+├── Customer/
+│   ├── CustomerService.php          # CRUD: create, update, delete, list
+│   ├── CustomerStatusService.php    # Переходы статусов: activate, suspend, archive
+│   └── CustomerExportService.php    # Экспорт: generateReport, exportCsv
+├── Order/
+│   ├── OrderService.php             # CRUD
+│   ├── OrderPaymentService.php      # Оплата: charge, refund, retry
+│   └── OrderFulfillmentService.php  # Выполнение: ship, deliver, cancel
+└── Billing/
+    ├── InvoiceService.php           # Счета
+    ├── PricingService.php           # Расчёт цен
+    └── SubscriptionService.php      # Подписки
+```
+
+**Паттерны дробления:**
+- **По CRUD vs Actions**: `{Entity}Service` для CRUD, `{Entity}{Action}Service` для сложных операций
+- **По домену**: `OrderPaymentService`, `OrderFulfillmentService`
+- **Single Action**: если операция сложная и самодостаточная — отдельный класс `Actions/{Action}.php`
+
+**Сервисы могут вызывать другие сервисы** — но без циклических зависимостей:
+```php
+final readonly class OrderPaymentService
+{
+    public function __construct(
+        private OrderRepositoryInterface $orderRepository,
+        private InvoiceService $invoiceService,          // ← другой сервис
+        private PaymentGatewayInterface $paymentGateway, // ← внешний интерфейс
+    ) {}
+}
+```
 
 **DB access policy:** Only Repository and QueryBuilder may touch the database. No `Model::query()`, `::create()`, `->save()`, `->delete()` in Controllers or Services.
 
@@ -80,18 +130,21 @@ Read the appropriate reference file **before** writing any code for that layer:
 |------|------|
 | Creating new entity from scratch | `references/architecture.md` first, then all relevant layer files |
 | Writing/modifying a controller | `references/controller.md` |
-| Writing business logic | `references/service-layer.md` |
+| Writing business logic, events, jobs | `references/service-layer.md` |
 | Writing data access layer | `references/repository-layer.md` |
 | Creating DTOs or FormRequests | `references/dto.md` |
 | Working with constants/statuses | `references/enums.md` |
 | Setting up models/migrations | `references/models.md` |
 | Working with API responses | `references/api-resources.md` |
-| Auth, rate limiting, security | `references/security.md` |
+| Auth, authorization, security | `references/security.md` |
 | Writing tests | `references/testing.md` |
 | Swappable components (payments, SMS, etc.) | `references/patterns.md` |
 | Working with money/prices | `references/money.md` |
 | API documentation (Scramble) | `references/api-docs.md` |
 | Reviewing existing code | `references/code-review.md` |
+| Code quality, PHPStan, Pint | `references/quality.md` |
+| Performance optimization | `references/performance.md` |
+| Laravel 11/12 structure and patterns | `references/laravel-11.md` |
 
 ## Key Dependencies
 
@@ -102,11 +155,41 @@ Read the appropriate reference file **before** writing any code for that layer:
 - `laravel/sanctum` — API authentication
 - `dedoc/scramble` — Auto-generated OpenAPI documentation from code
 
+### Dev Dependencies (Quality & Testing)
+
+- `phpstan/phpstan` + `larastan/larastan` — Static analysis level 9
+- `phpstan/phpstan-strict-rules` — Strict typing rules
+- `laravel/pint` — PSR-12 code style (Laravel preset)
+- `pestphp/pest` — Testing framework (default in Laravel 11+)
+
+## Constraints
+
+### MUST DO
+- `declare(strict_types=1)` in every PHP file
+- `final` on controllers, services, repositories, DTOs, resources, requests
+- `readonly` on services and DTOs
+- Type hint ALL parameters, properties, and return types
+- PHPStan level 9 — zero errors before commit
+- Laravel Pint — PSR-12 compliance
+- Test coverage >= 85%
+- `Model::preventLazyLoading()` in AppServiceProvider
+- Policies for authorization of every entity
+- Security headers middleware on all responses
+
+### MUST NOT DO
+- Use `mixed` type — use union types or specific types
+- Skip `declare(strict_types=1)`
+- Deploy without PHPStan + Pint + tests passing
+- Use `$guarded = []` on models
+- Log PII (emails, tokens, passwords)
+- Use `APP_DEBUG=true` in production
+- Use wildcard CORS origins for authenticated routes
+
 ## Quick Reference: New Entity Checklist
 
 When creating a new entity `{Entity}`:
 
-1. **Migration** — `{entity}s` table with `key` column (string, unique, 30 chars)
+1. **Migration** — `{entity}s` table with `key` column (string, unique, 40 chars)
 2. **Model** — with prefix+ULID key generation, casts to Enums, `getRouteKeyName() → 'key'`
 3. **Enum(s)** — for any statuses/types, implementing HasLabel + HasColor + HasIcon
 4. **DTO** — `Create{Entity}Data`, `Update{Entity}Data` via Spatie Data
@@ -121,23 +204,13 @@ When creating a new entity `{Entity}`:
 13. **Service Provider** — bind interface → implementation
 14. **Tests** — feature tests extending `ApiTestCase`
 
-## Anti-Patterns to Avoid
+## Anti-Patterns (key ones — full list in `references/code-review.md`)
 
-- `Model::where()` in controller or service — use Repository
-- `scopeXxx()` in model — use QueryBuilder class
-- Magic strings like `'pending'`, `'completed'` — use Enums
-- Magic numbers like `3600`, `60` — use CacheTtl Enum
-- Returning arrays from services — use typed objects
-- Raw `Cache::put('key', ...)` — use CacheKey Enum with `.with()` method
-- `$request->input()` in service — pass DTO from controller
-- Fat controllers with DB queries — extract to Service + Repository
-- `float` or `decimal` for money — use `Brick\Money\Money`
-- Hardcoded payment/SMS provider — use Manager/Driver pattern with interface
-- Controller methods without PHPDoc and Scramble attributes — every method needs `#[Group]`, PHPDoc summary/description, `#[QueryParameter]`, `#[PathParameter]`, `#[Response]`
-- `response()->json([...])` in controllers — use `JsonApiResource::make()` / `::collection()`
-- `PUT` for updates — JSON:API spec requires `PATCH`
-- `?per_page=20` — use `?page[size]=20` (JSON:API pagination)
-- `?status=active` — use `?filter[status]=active` (Spatie QueryBuilder)
-- Flat request body `{name: "John"}` — wrap in `{data: {type: "customers", attributes: {name: "John"}}}`
-- `{error: {code, message}}` — use `{errors: [{status, code, title, detail}]}` (JSON:API errors)
-- Extending `JsonResource` — extend `TiMacDonald\JsonApi\JsonApiResource`
+- `Model::where()` in controller/service — use Repository
+- `scopeXxx()` in model — use QueryBuilder
+- `response()->json()` in controller — use `JsonApiResource::make()`
+- `PUT` for updates — use `PATCH` (JSON:API spec)
+- Magic strings/numbers — use Enums
+- `$guarded = []` — always use `$fillable`
+- No `declare(strict_types=1)` — required in every file
+- No tests — coverage >= 85% required
