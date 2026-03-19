@@ -157,10 +157,12 @@ Read the appropriate reference file **before** writing any code for that layer:
 
 ### Dev Dependencies (Quality & Testing)
 
-- `phpstan/phpstan` + `larastan/larastan` — Static analysis level 9
-- `phpstan/phpstan-strict-rules` — Strict typing rules
+- `phpstan/phpstan` + `larastan/larastan` — Static analysis level 8, zero errors, no baseline
 - `laravel/pint` — PSR-12 code style (Laravel preset)
-- `pestphp/pest` — Testing framework (default in Laravel 11+)
+- `pestphp/pest` — Testing framework with coverage (>= 85%) and mutation testing
+- `nunomaduro/phpinsights` — Code quality metrics (architecture, complexity, style, security)
+- `rector/rector` — Automated refactoring and PHP modernization
+- `deptrac/deptrac` — Layer dependency control (Controller→Service→Repository)
 
 ## Constraints
 
@@ -169,9 +171,14 @@ Read the appropriate reference file **before** writing any code for that layer:
 - `final` on controllers, services, repositories, DTOs, resources, requests
 - `readonly` on services and DTOs
 - Type hint ALL parameters, properties, and return types
-- PHPStan level 9 — zero errors before commit
+- PHPStan level 8 — zero errors, **no baseline**, before commit
 - Laravel Pint — PSR-12 compliance
-- Test coverage >= 85%
+- Test coverage >= 85% (`XDEBUG_MODE=coverage ./vendor/bin/pest --coverage --min=85`)
+- `@property` PHPDoc on models (mapped from migration columns)
+- `@mixin ModelClass` on ALL JsonApiResource subclasses
+- `@param array<string, mixed>` on ALL array parameters (no bare `array`)
+- `@return Collection<int, Model>` / `LengthAwarePaginator<int, Model>` on generic returns
+- `covers()` or `mutates()` in test files for mutation score tracking
 - `Model::preventLazyLoading()` in AppServiceProvider
 - Policies for authorization of every entity
 - Security headers middleware on all responses
@@ -179,8 +186,12 @@ Read the appropriate reference file **before** writing any code for that layer:
 ### MUST NOT DO
 - Use `mixed` type — use union types or specific types
 - Skip `declare(strict_types=1)`
-- Deploy without PHPStan + Pint + tests passing
-- Use `$guarded = []` on models
+- Deploy without PHPStan + Pint + tests + coverage passing
+- Use PHPStan baseline — fix errors, don't suppress them
+- Use `@phpstan-ignore` — fix the root cause
+- Use `Model::fresh()` — use `Model::refresh()` (returns `$this`, not nullable)
+- Use `$request->user()->` without null check — use `$request->user() ?? abort(401)`
+- Use `$guarded = []` on models — always use `$fillable`
 - Log PII (emails, tokens, passwords)
 - Use `APP_DEBUG=true` in production
 - Use wildcard CORS origins for authenticated routes
