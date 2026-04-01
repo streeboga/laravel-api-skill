@@ -171,47 +171,25 @@ laravel-api-skill/
 - Use `$guarded = []` -- always use `$fillable`
 - Log PII (emails, tokens, passwords)
 
-## Two-Level Architecture
+## How It Works
 
-The skill operates on two levels that solve different problems:
+The skill consists of two parts:
 
-### Level 1: CLAUDE.md (always in context)
+**CLAUDE.md** — lives in your project root, loaded by Claude Code **every session**. Contains hard architectural rules and a phase dispatcher that forces the agent to read the correct reference files before writing code. This ensures rules are always enforced, not just when the skill activates.
 
-Lives in **your project root**. Loaded by Claude Code at the start of **every session**. Contains:
-- Hard architectural rules (violation = rewrite)
-- Phase dispatcher: detects what you're doing → forces reading the right reference files
-- 14-file entity checklist with reference file mapping
-
-**This solves the "agent forgets the rules" problem.** The rules are always in context, not optional.
-
-### Level 2: SKILL.md + references/ (loaded on demand)
-
-Lives in `~/.claude/skills/`. Contains:
-- Detailed architecture knowledge (SKILL.md hub)
-- 19 reference files with code templates, patterns, and checklists
-
-**This solves the "how exactly to implement" problem.** Deep knowledge loaded only when needed.
-
-### How they work together
+**SKILL.md + references/** — lives in `~/.claude/skills/`, loaded on demand. Contains detailed architecture knowledge, code templates, and checklists across 19 reference files.
 
 ```
 User: "Create Invoice entity"
          ↓
 CLAUDE.md (always loaded):
   → Detects phase: "Entity creation"
-  → MANDATES: read references/architecture.md first
-  → MANDATES: read reference for each layer before writing code
+  → Forces reading references/architecture.md, then per-layer references
   → Lists all 14 required files
          ↓
-SKILL.md (activated):
-  → Provides architecture diagram and JSON:API rules
-  → Routes to specific reference files
-         ↓
-references/*.md (loaded per layer):
+SKILL.md + references/*.md (loaded per layer):
   → Provides exact code templates and patterns
 ```
-
-Without CLAUDE.md, the agent **might** follow the skill. With CLAUDE.md, it **must**.
 
 ## Workflows
 
