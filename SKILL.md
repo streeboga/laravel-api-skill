@@ -10,6 +10,18 @@ metadata:
 
 # Laravel API Production-Ready Architecture (JSON:API v1.1)
 
+## SETUP GATE (выполни перед любой работой)
+
+При первом вызове этого скилла в проекте проверь CLAUDE.md в корне проекта:
+
+1. Если файла CLAUDE.md нет — прочитай `templates/CLAUDE.md` из директории этого скилла и создай CLAUDE.md в корне проекта с его содержимым.
+2. Если CLAUDE.md существует, но НЕ содержит секцию "## Архитектура (нарушение = баг)" — прочитай `templates/CLAUDE.md` и ДОПИШИ его содержимое в конец существующего CLAUDE.md.
+3. Если секция уже есть — всё ок, продолжай работу.
+
+**Сообщи пользователю** что было сделано: "CLAUDE.md настроен для Laravel API архитектуры. Теперь правила будут применяться автоматически в каждой сессии."
+
+---
+
 This skill defines the architecture and code patterns for all Laravel API projects. Every new entity, endpoint, or feature must follow these rules.
 
 **API формат:** JSON:API v1.1 ([jsonapi.org](https://jsonapi.org)). Все ответы Public API возвращают `{data: {type, id, attributes, relationships, links}}`.

@@ -6,8 +6,34 @@ A skill for AI coding agents (Claude Code, Cursor, Copilot, etc.) that enforces 
 
 ## Installation
 
+### Step 1: Install the skill
+
 ```bash
 npx skills add streeboga/laravel-api-skill
+```
+
+### Step 2: Setup CLAUDE.md (automatic)
+
+On first use, the skill automatically checks your project's `CLAUDE.md`:
+- **No CLAUDE.md?** — Creates one from `templates/CLAUDE.md` with Laravel architecture rules
+- **CLAUDE.md exists but no Laravel section?** — Appends the Laravel section
+- **Already configured?** — Proceeds normally
+
+The `CLAUDE.md` template acts as a **phase dispatcher** — it detects what you're doing (creating an entity, reviewing code, writing tests) and forces the agent to read the correct reference files before writing any code.
+
+### Manual setup (alternative)
+
+If you prefer to set it up manually:
+
+```bash
+# Copy the template to your project root
+cp ~/.claude/skills/laravel-api/templates/CLAUDE.md ./CLAUDE.md
+```
+
+Or append to an existing CLAUDE.md:
+
+```bash
+cat ~/.claude/skills/laravel-api/templates/CLAUDE.md >> ./CLAUDE.md
 ```
 
 ## What It Does
@@ -80,6 +106,8 @@ laravel-api-skill/
 ├── SKILL.md                          # Entry point (always loaded)
 ├── README.md                         # This file
 ├── README.ru.md                      # Russian documentation
+├── templates/
+│   └── CLAUDE.md                     # Template for project CLAUDE.md (phase dispatcher)
 └── references/                       # Loaded on demand
     ├── architecture.md               # Layer diagram, DB access policy
     ├── controller.md                 # Thin controllers, JSON:API, middleware
@@ -142,6 +170,48 @@ laravel-api-skill/
 - Use PHPStan baseline -- fix errors, don't suppress them
 - Use `$guarded = []` -- always use `$fillable`
 - Log PII (emails, tokens, passwords)
+
+## Two-Level Architecture
+
+The skill operates on two levels that solve different problems:
+
+### Level 1: CLAUDE.md (always in context)
+
+Lives in **your project root**. Loaded by Claude Code at the start of **every session**. Contains:
+- Hard architectural rules (violation = rewrite)
+- Phase dispatcher: detects what you're doing → forces reading the right reference files
+- 14-file entity checklist with reference file mapping
+
+**This solves the "agent forgets the rules" problem.** The rules are always in context, not optional.
+
+### Level 2: SKILL.md + references/ (loaded on demand)
+
+Lives in `~/.claude/skills/`. Contains:
+- Detailed architecture knowledge (SKILL.md hub)
+- 19 reference files with code templates, patterns, and checklists
+
+**This solves the "how exactly to implement" problem.** Deep knowledge loaded only when needed.
+
+### How they work together
+
+```
+User: "Create Invoice entity"
+         ↓
+CLAUDE.md (always loaded):
+  → Detects phase: "Entity creation"
+  → MANDATES: read references/architecture.md first
+  → MANDATES: read reference for each layer before writing code
+  → Lists all 14 required files
+         ↓
+SKILL.md (activated):
+  → Provides architecture diagram and JSON:API rules
+  → Routes to specific reference files
+         ↓
+references/*.md (loaded per layer):
+  → Provides exact code templates and patterns
+```
+
+Without CLAUDE.md, the agent **might** follow the skill. With CLAUDE.md, it **must**.
 
 ## Workflows
 
