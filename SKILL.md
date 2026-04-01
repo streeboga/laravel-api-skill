@@ -1,6 +1,11 @@
 ---
 name: laravel-api
 description: "Laravel API architecture and code generation guide. JSON:API v1.1 spec compliant. Enforces layered architecture: Controller → Service → Repository → QueryBuilder. Uses timacdonald/json-api for resources, spatie/laravel-query-builder for filtering/sorting. Covers DTOs, Enums, public keys, Scramble docs, testing. MANDATORY TRIGGERS: Laravel API, REST API, JSON:API, создание API, архитектура Laravel, генерация CRUD, сервисный слой, репозиторий, DTO, API ресурс. Use this skill whenever the user works on a Laravel API project, creates new entities/endpoints, reviews Laravel code, or asks about Laravel API architecture patterns."
+license: MIT
+compatibility: "Requires PHP 8.2+, Laravel 10+, Composer"
+metadata:
+  author: streeboga
+  version: "1.0"
 ---
 
 # Laravel API Production-Ready Architecture (JSON:API v1.1)
