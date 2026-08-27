@@ -1,5 +1,7 @@
 # Laravel API Production-Ready Architecture Skill
 
+> Открытый проект [EQ Platform](https://eq.team) — [страница проекта](https://eq.team/open-source/oss-laravel-api-skill/)
+
 > [Читать на русском (README.ru.md)](README.ru.md)
 
 A skill for AI coding agents (Claude Code, Cursor, Copilot, etc.) that enforces architectural discipline in Laravel API projects: JSON:API v1.1, layered architecture, strict types, full test coverage.
