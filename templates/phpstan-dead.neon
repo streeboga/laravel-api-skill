@@ -24,5 +24,7 @@ parameters:
     shipmonkDeadCode:
         reportTransitivelyDeadMethodAsSeparateError: true
         usageExcluders:
+            usageOverMixed:
+                enabled: true
             tests:
                 enabled: true

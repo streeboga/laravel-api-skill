@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<psalm errorLevel="3" resolveFromConfigFile="false" cacheDirectory="/tmp/psalm-dead" findUnusedCode="true" findUnusedBaselineEntry="false" xmlns="https://getpsalm.org/schema/config">
+  <projectFiles>
+    <file name=".psalm-entries.php"/><directory name="app"/>
+    <directory name="routes"/>
+    <directory name="bootstrap"/>
+    <directory name="config"/>
+    <directory name="database/seeders"/>
+    <directory name="database/factories"/>
+    <ignoreFiles><directory name="vendor"/><directory name="bootstrap/cache"/></ignoreFiles>
+  </projectFiles>
+</psalm>
