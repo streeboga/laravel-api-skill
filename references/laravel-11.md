@@ -4,7 +4,7 @@
 
 Laravel 11 радикально упростил структуру приложения. Laravel 12 — maintenance-релиз без структурных изменений.
 
-**Минимальные требования:** PHP 8.2+
+**Минимальные требования:** PHP 8.2+; Laravel 13 требует PHP 8.3+, сверяй версию в `composer.json`
 
 ## Slim Skeleton
 
@@ -62,7 +62,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(function (\Symfony\Component\HttpKernel\Exception\NotFoundHttpException $e, $request) {
             if ($request->is('api/*')) {
                 return response()->json([
-                    'errors' => [['status' => '404', 'title' => 'Not Found', 'detail' => $e->getMessage()]],
+                    'errors' => [['status' => '404', 'title' => 'Not Found']],
                 ], 404);
             }
         });
@@ -119,7 +119,6 @@ final class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        // Repository bindings (или используй отдельный RepositoryServiceProvider)
     }
 
     public function boot(): void
@@ -147,7 +146,6 @@ final class AppServiceProvider extends ServiceProvider
 
 return [
     App\Providers\AppServiceProvider::class,
-    App\Providers\RepositoryServiceProvider::class,
 ];
 ```
 
@@ -233,8 +231,7 @@ Schedule::command('app:send-reports')->weeklyOn(1, '8:00');
             return response()->json([
                 'errors' => [[
                     'status' => (string) $status,
-                    'title' => class_basename($e),
-                    'detail' => $e->getMessage(),
+                    'title' => 'Server Error', // текст исключения клиенту не отдаётся
                 ]],
             ], $status);
         }
@@ -268,7 +265,7 @@ php artisan config:publish sanctum
 
 - **Pest** — тестовый фреймворк по умолчанию
 - `tests/CreatesApplication.php` — удалён (не нужен)
-- SQLite — дефолтная БД для разработки
+- SQLite — дефолт нового приложения. Проект с CHECK, частичными индексами и RLS тестируется на своей СУБД
 
 ```php
 // tests/TestCase.php (упрощён)

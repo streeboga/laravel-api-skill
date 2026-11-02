@@ -3,7 +3,7 @@
 ## Инструкции для AI
 
 При запуске code review:
-1. Прогони **все 13 секций** чеклиста ниже
+1. Прогони **все 14 секций** чеклиста ниже
 2. При обнаружении проблем — подгрузи соответствующий reference-файл для контекста:
    - Архитектура → `references/architecture.md`
    - Контроллер → `references/controller.md`
@@ -59,8 +59,8 @@
 □ Все константы определены через PHP Enums
 □ Нет magic strings ('pending', 'completed')
 □ Нет magic numbers (60, 3600)
-□ Enums реализуют HasLabel, HasColor, HasIcon
-□ Методы: getLabel(), getColor(), getIcon() (стиль Filament)
+□ Подпись, цвет и иконка у enum только там, где их показывает интерфейс
+□ getLabel() только если подпись показывается; цвет и иконка не в API-enum
 □ Статусы имеют canTransitionTo(), isTerminal()
 □ Модели используют cast к Enum
 □ Валидация через Rule::enum()
@@ -95,7 +95,7 @@
 ## 6. Repository
 
 ```
-□ Реализует интерфейс из Contracts/
+□ Конкретный final-класс; интерфейс только при второй реализации
 □ Только CRUD операции и запросы
 □ Нет бизнес-логики
 □ Использует QueryBuilder для сложных запросов
@@ -227,7 +227,7 @@
 
 ```
 □ Feature тесты наследуют ApiTestCase
-□ Покрытие >= 85%
+□ Новый инвариант закрыт тестом, который падает при нарушении
 □ Тесты отправляют плоский JSON на входе (НЕ data.attributes envelope)
 □ Тесты проверяют JSON:API структуру ответа (data.type, data.id, data.attributes)
 □ Тесты покрывают: CRUD, авторизацию, валидацию, фильтрацию, сортировку, пагинацию
@@ -244,13 +244,43 @@
 
 ```
 □ Middleware в bootstrap/app.php (не в Kernel.php)
-□ Единственный AppServiceProvider (или + RepositoryServiceProvider)
+□ Единственный AppServiceProvider, без привязок интерфейса с одной реализацией
 □ Providers в bootstrap/providers.php
 □ Rate limiting в AppServiceProvider::boot()
 □ casts() метод вместо $casts property
 □ routes/console.php для scheduling
 □ Health check /up endpoint
 □ Config — только переопределённые файлы опубликованы
+```
+
+## 14. Границы доверия (аудит 2026-10)
+
+Метод — `references/secure-design.md`: для каждого изменённого маршрута, задачи и вебхука назови инвариант и проверь родственные пути (API, команда, очередь, импорт, админка) на равносильный контроль.
+
+- [ ] Исходящий HTTP на пользовательский URL идёт через `OutboundUrlGuard` (https, A+AAAA, непубличные IP, `CURLOPT_RESOLVE`, без редиректов, тело ответа не сохраняется)
+- [ ] `{path}` и пользовательские сегменты проверены на `? # .. \` и закодированные формы
+- [ ] Чужому серверу не уходят `X-Forwarded-*`, `X-Real-IP`, `Forwarded`, `Authorization` покупателя
+- [ ] Секреты: `hash_equals`, пустой = отказ, не в query, boot guard в production
+- [ ] Входящий вебхук: подпись + timestamp + обязательные сумма и валюта; исходящий callback подписан
+- [ ] `Rule::exists` привязан к владельцу; пустой фильтр = пустой результат (`array_key_exists`)
+- [ ] Статусы площадки (`BLOCKED`/`PENDING`) владелец не меняет; публичные выборки скрывают `BLOCKED`-продавца
+- [ ] Одноразовые операции атомарны (`UPDATE ... WHERE ... IS NULL`), баланс — резерв, идемпотентность привязана к владельцу
+- [ ] Данные контрагента (usage, цена) ограничены потолком
+- [ ] Смена почты/пароля требует `current_password` и отзывает токены; регистрация с throttle и нормализацией почты
+- [ ] Ресурсы отдают белый список; `$hidden`/`encrypted` на секретах; в ответах нет `getMessage()`
+- [ ] `max:` на строках/массивах/`per_page`; `throttle` на публичных; у джоб `timeout/tries/backoff`; `withoutOverlapping` в минутах
+- [ ] Тестовые маршруты и коннекторы выключены в production; на каждую границу есть регрессионный тест
+
+## 15. Слоп и побочные эффекты
+
+```
+□ Нет интерфейса, Manager, события или DTO без второй реализации или реальной причины
+□ Событие, задание, письмо — после коммита; HTTP вне транзакции
+□ Нет fresh(), strip_tags на вводе, return true в authorize()
+□ Заменённый код удалён в той же правке
+□ Комментарий объясняет почему, а не что
+□ catch не глотает ошибку и не логирует её ради повторного броска
+□ У задания tries или retryUntil, backoff, timeout, идемпотентный ключ
 ```
 
 ## Примеры ошибок
@@ -297,7 +327,7 @@ class CustomerService {
 
 // ✅ Полная типизация
 final readonly class CustomerService {
-    public function __construct(private CustomerRepositoryInterface $repo) {}
+    public function __construct(private CustomerRepository $repo) {}
     public function create(User $user, CreateCustomerData $data): Customer {
         return DB::transaction(fn () => $this->repo->create([...]));
     }
@@ -310,6 +340,7 @@ final readonly class CustomerService {
 ## Code Review Report
 ### Файл: `{path}`
 ### Архитектура: ✅/⚠️/❌
+### Границы доверия: ✅/⚠️/❌
 ### Качество кода: ✅/⚠️/❌
 ### Enums: ✅/⚠️/❌
 ### QueryBuilder: ✅/⚠️/❌

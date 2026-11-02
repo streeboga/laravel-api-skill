@@ -9,6 +9,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Api;
 
 use App\Models\User;
+use Laravel\Sanctum\Sanctum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -24,9 +25,12 @@ abstract class ApiTestCase extends TestCase
         $this->user = User::factory()->create();
     }
 
-    protected function apiAs(User $user = null): self
+    /** actingAs($u, 'sanctum') не создаёт токен, и маршрут с abilities: отвечает 401. */
+    protected function apiAs(?User $user = null, array $abilities = ['*']): self
     {
-        return $this->actingAs($user ?? $this->user, 'sanctum');
+        Sanctum::actingAs($user ?? $this->user, $abilities);
+
+        return $this;
     }
 
 }
@@ -140,7 +144,7 @@ final class {Entity}ControllerTest extends ApiTestCase
 
         $response = $this->apiAs()->getJson("/api/v1/{entities}/{$other->key}");
 
-        $response->assertForbidden();
+        $response->assertNotFound();
     }
 
     public function test_unauthenticated_returns_401(): void
@@ -216,7 +220,7 @@ final class {Entity}ControllerTest extends ApiTestCase
 - Для create — проверяй 201 + Location header
 - Для delete — проверяй `assertNoContent()` (204)
 - Для ошибок — проверяй `errors` массив с `status`, `title`, `detail`
-- Покрытие тестами — минимум 85%: `php artisan test --coverage --min=85`
+- Покрытие 85 % — ориентир проекта, а не цель теста
 - Используй `RefreshDatabase` (не `DatabaseMigrations`) — быстрее
 
 **ВАЖНО: Разделение входа и выхода**
@@ -238,7 +242,8 @@ use Illuminate\Support\Facades\Event;
 
 public function test_create_dispatches_event(): void
 {
-    Event::fake();
+    // Имена классов: пустой fake глотает всё, включая creating-хуки моделей. Фабрики — до fake.
+    Event::fake([{Entity}Created::class, {Entity}Deleted::class]);
 
     $payload = ['name' => 'Test'];
     $this->apiAs()->postJson('/api/v1/{entities}', $payload);
@@ -255,7 +260,7 @@ use Illuminate\Support\Facades\Queue;
 
 public function test_publish_queues_job(): void
 {
-    Queue::fake();
+    Queue::fake([Publish{Entity}::class]);
 
     $this->apiAs()->postJson("/api/v1/{entities}/{${entity}->key}/publish");
 
@@ -323,7 +328,11 @@ public function test_can_upload_document(): void
 }
 ```
 
+Время — `freezeTime()`, `travelTo()`, не `Carbon::setTestNow`. Пауза — `Sleep::fake()`. Проверка отчёта об ошибке — `Exceptions::fake()`, не `withoutExceptionHandling()`.
+
 ## Mocking через Service Container
+
+Mockery не мокает `final`, поэтому свои Service и Repository не мокаются: они идут на тестовой БД. Мок — только интерфейсу внешней границы; HTTP закрывает `Http::fake`.
 
 ```php
 use Mockery\MockInterface;
@@ -442,8 +451,8 @@ public function test_created_at_is_current(): void
 # Все тесты
 php artisan test
 
-# С покрытием (минимум 85%)
-php artisan test --coverage --min=85
+# С покрытием (ориентир 85%)
+php artisan test --coverage
 
 # Параллельно (быстрее)
 php artisan test --parallel --processes=4

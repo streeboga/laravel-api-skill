@@ -67,16 +67,15 @@ Ask the agent to create a new entity and it generates **14 files** following the
 1. Migration
 2. Model (with ULID public keys)
 3. Enum(s)
-4. Create DTO + Update DTO (Spatie Data)
+4. Create DTO + Update DTO (readonly classes)
 5. Store Request + Update Request (with `toDto()`)
 6. QueryBuilder
-7. Repository Interface + Implementation
+7. Repository (interface only with a second implementation)
 8. Service
 9. Controller (thin, JSON:API compliant)
 10. JsonApiResource
 11. Routes (versioned, PATCH for updates)
-12. Service Provider binding
-13. Feature Tests
+12. Feature Tests
 
 ### Code Review
 
@@ -86,7 +85,7 @@ The skill includes a 13-section code review checklist covering architecture comp
 
 ### Hub + Reference Files
 
-`SKILL.md` (~170 lines) is always loaded into context. It contains the architecture diagram, JSON:API rules, routing table to reference files, and constraints.
+`SKILL.md` (~160 lines) is always loaded into context. It contains the architecture diagram, JSON:API rules, routing table to reference files, and constraints.
 
 Reference files are loaded **on demand** -- only those needed for the current task:
 
@@ -115,7 +114,7 @@ laravel-api-skill/
     ├── controller.md                 # Thin controllers, JSON:API, middleware
     ├── service-layer.md              # Business logic, events, jobs, caching
     ├── repository-layer.md           # Repository + QueryBuilder patterns
-    ├── dto.md                        # Spatie Data DTOs, FormRequests
+    ├── dto.md                        # readonly DTOs, FormRequests
     ├── models.md                     # Models, public keys, migrations
     ├── enums.md                      # PHP Enums, HasLabel/HasColor, CacheKey
     ├── api-resources.md              # JSON:API resources (timacdonald/json-api)
@@ -138,7 +137,6 @@ laravel-api-skill/
 |---------|---------|
 | `timacdonald/json-api` | JSON:API resources |
 | `spatie/laravel-query-builder` | Filtering, sorting, includes |
-| `spatie/laravel-data` | DTOs |
 | `brick/money` | Money objects |
 | `laravel/sanctum` | API authentication |
 | `dedoc/scramble` | Auto-generated OpenAPI docs |

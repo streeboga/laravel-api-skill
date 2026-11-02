@@ -9,7 +9,7 @@
 - `readonly` — на сервисы и DTO
 - Все параметры, свойства и возвращаемые значения — типизированы
 - Без `mixed` типов — используй union types или конкретные типы
-- Test coverage >= 85% с mutation testing
+- Покрытие 85 % — ориентир; для денег и прав важнее мутационный балл
 
 ## declare(strict_types=1)
 
@@ -389,7 +389,7 @@ Mutation testing проверяет КАЧЕСТВО тестов: мутиру�
 ### Запуск
 
 ```bash
-XDEBUG_MODE=coverage ./vendor/bin/pest --coverage --min=85          # Coverage
+XDEBUG_MODE=coverage ./vendor/bin/pest --coverage                    # Coverage
 XDEBUG_MODE=coverage ./vendor/bin/pest --mutate --parallel           # Mutation testing
 XDEBUG_MODE=coverage ./vendor/bin/pest --mutate --class=CustomerService  # Конкретный класс
 ```
@@ -421,7 +421,7 @@ it('validates email uniqueness', function () {
 
 | Метрика | Минимум | Цель |
 |---------|---------|------|
-| Line coverage | 85% | 90%+ |
+| Line coverage | ориентир 85% | 90%+ |
 | Mutation score | 70% | 80%+ |
 | Escaped mutants | < 30% | < 20% |
 
@@ -442,7 +442,7 @@ it('validates email uniqueness', function () {
 ./vendor/bin/deptrac analyse
 
 # 4. Тесты с покрытием
-XDEBUG_MODE=coverage ./vendor/bin/pest --coverage --min=85
+XDEBUG_MODE=coverage ./vendor/bin/pest --coverage
 
 # 5. Качество кода (опционально, для PR review)
 php artisan insights --no-interaction
@@ -485,11 +485,10 @@ jobs:
       - name: Run Migrations
         run: php artisan migrate --force
         env:
-          DB_CONNECTION: sqlite
-          DB_DATABASE: ':memory:'
+          DB_CONNECTION: pgsql  # та же СУБД, что на бою: CHECK и частичные индексы на SQLite не проверить
 
       - name: Tests + Coverage
-        run: XDEBUG_MODE=coverage ./vendor/bin/pest --coverage --min=85
+        run: XDEBUG_MODE=coverage ./vendor/bin/pest --coverage
 
       - name: PHP Insights
         run: php artisan insights --no-interaction

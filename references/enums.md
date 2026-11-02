@@ -3,15 +3,13 @@
 ## Правила
 - ВСЕ константы определяй как PHP Enum
 - Без магических строк: `'pending'`, `'completed'` → используй Enum
-- Без магических чисел: `3600`, `60` → используй CacheTtl Enum
-- Enum реализует интерфейсы Filament-стиля: `HasLabel`, `HasColor`, `HasIcon`
-- Методы: `getLabel()`, `getColor()`, `getIcon()`, `getDescription()`, `getWeight()`
+- Числа с именем: `private const RESEND_ATTEMPTS = 3` в классе, где они нужны. Enum — для закрытого набора значений, а не для одной константы
+- `label()` добавляй, только если подпись где-то показывается. Цвет и иконка — дело админки: Filament берёт их из своих интерфейсов, в API-enum их нет
 - Status enum включает: `canTransitionTo()`, `isTerminal()`, `isActive()`
-- Каждый enum имеет статические методы `values()` и `options()`
-- В моделях используй `$casts` для приведения типа к Enum
+- `values()` и `options()` — когда есть вызывающий код
+- В моделях приводи тип к Enum в `casts()`
 - Валидацию делай через `Rule::enum(EnumClass::class)`
-- Кэш-ключи через CacheKey enum с методом `->with()`
-- TTL кэша через CacheTtl enum
+- Кэш-ключ строится в одном месте; ключ включает владельца и всё, от чего зависит значение
 
 ## Интерфейсы (app/Contracts/Enums/)
 
@@ -21,8 +19,6 @@ declare(strict_types=1);
 namespace App\Contracts\Enums;
 
 interface HasLabel { public function getLabel(): string; }
-interface HasColor { public function getColor(): string; }
-interface HasIcon { public function getIcon(): string; }
 interface HasDescription { public function getDescription(): string; }
 interface HasWeight { public function getWeight(): int; }
 ```
@@ -36,11 +32,9 @@ declare(strict_types=1);
 
 namespace App\Enums;
 
-use App\Contracts\Enums\HasColor;
-use App\Contracts\Enums\HasIcon;
 use App\Contracts\Enums\HasLabel;
 
-enum OrderStatus: string implements HasLabel, HasColor, HasIcon
+enum OrderStatus: string implements HasLabel
 {
     case Pending = 'pending';
     case Processing = 'processing';
@@ -54,26 +48,6 @@ enum OrderStatus: string implements HasLabel, HasColor, HasIcon
             self::Processing => 'Обработка',
             self::Completed => 'Завершено',
             self::Cancelled => 'Отменено',
-        };
-    }
-
-    public function getColor(): string
-    {
-        return match ($this) {
-            self::Pending => 'warning',
-            self::Processing => 'info',
-            self::Completed => 'success',
-            self::Cancelled => 'danger',
-        };
-    }
-
-    public function getIcon(): string
-    {
-        return match ($this) {
-            self::Pending => 'heroicon-o-clock',
-            self::Processing => 'heroicon-o-arrow-path',
-            self::Completed => 'heroicon-o-check-circle',
-            self::Cancelled => 'heroicon-o-x-circle',
         };
     }
 
@@ -164,7 +138,7 @@ enum CacheKey: string
     case OrderDetails = 'order:%s:details';
     case ProductList = 'products:list:%s';
 
-    public function with(mixed ...$params): string
+    public function with(string|int ...$params): string
     {
         return sprintf($this->value, ...$params);
     }
@@ -184,7 +158,8 @@ enum CacheKey: string
 ## Использование в Model casts
 
 ```php
-protected $casts = [
+// метод casts(): array, Laravel 11+
+return [
     'status' => OrderStatus::class,
 ];
 ```
@@ -203,8 +178,6 @@ use Illuminate\Validation\Rule;
 'status' => [
     'value' => $this->status->value,
     'label' => $this->status->getLabel(),
-    'color' => $this->status->getColor(),
-    'icon' => $this->status->getIcon(),
 ],
 ```
 

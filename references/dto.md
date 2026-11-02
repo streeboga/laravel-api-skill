@@ -1,74 +1,59 @@
 # DTO — Data Transfer Objects
 
 ## Правила
-- Используйте `spatie/laravel-data` для всех DTO
-- DTO это `final class`, расширяющий `Data`
-- Свойства объявляйте `readonly`
-- Используйте `Spatie\LaravelData\Optional` для DTO обновления
-- FormRequest должен включать метод `toDto()`
-- Очищайте входные данные в `prepareForValidation()`
-- Правила валидации определяйте в DTO или FormRequest
+- DTO — обычный `final readonly class` с конструктором. `spatie/laravel-data` используй, только если он уже стоит в проекте.
+- DTO нужен, когда полей больше трёх или важно различие «не прислали» и «прислали null». Для пары аргументов хватит параметров метода.
+- PATCH: базовый `abstract readonly class ValidatedData` с `fromArray()`, `has()`, `toAttributes()`: в нём лежат только присланные ключи.
+- DTO не нужен: одно поле, фильтры списка, запрос только с авторизацией, вебхук с подписью по сырому массиву.
+- FormRequest собирает DTO в `toDto()` из провалидированных значений.
+- `authorize()` не `return true`: минимум `$this->user() !== null`, владение проверяет политика.
+- У каждой строки и массива `max:`. У `exists` условие владельца.
+- Ввод не переписывается: `strip_tags` ломает пароли и легитимный текст, а XSS закрывается экранированием при выводе. Пробелы обрезает глобальный `TrimStrings`.
 
 ## Шаблон: Create{Entity}Data
 
 ```php
 <?php
-// app/DataTransferObjects/{Entity}/Create{Entity}Data.php
 
 declare(strict_types=1);
 
 namespace App\DataTransferObjects\{Entity};
 
-use Spatie\LaravelData\Attributes\Validation\Max;
-use Spatie\LaravelData\Attributes\Validation\Required;
-use Spatie\LaravelData\Data;
-
-final class Create{Entity}Data extends Data
+final readonly class Create{Entity}Data
 {
     public function __construct(
-        #[Required, Max(255)]
-        public readonly string $title,
-        public readonly ?string $description = null,
+        public string $title,
+        public ?string $description = null,
     ) {}
-
-    public static function rules(): array
-    {
-        return [
-            'title' => ['required', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
-        ];
-    }
 }
 ```
 
 ## Шаблон: Update{Entity}Data
 
+`PATCH`: «не прислали» не трогает колонку, `null` очищает её.
+
 ```php
 <?php
-// app/DataTransferObjects/{Entity}/Update{Entity}Data.php
 
 declare(strict_types=1);
 
 namespace App\DataTransferObjects\{Entity};
 
-use Spatie\LaravelData\Data;
-use Spatie\LaravelData\Optional;
-
-final class Update{Entity}Data extends Data
+final readonly class Update{Entity}Data
 {
     public function __construct(
-        public readonly string|Optional $title = new Optional(),
-        public readonly string|Optional|null $description = new Optional(),
+        public ?string $title = null,
+        public ?string $description = null,
+        public bool $descriptionGiven = false,
     ) {}
 
-    /**
-     * Получите только заполненные поля для обновления
-     */
-    public function toUpdateArray(): array
+    /** @return array<string, string|null> */
+    public function toAttributes(): array
     {
-        return collect($this->toArray())
-            ->reject(fn ($value) => $value instanceof Optional)
-            ->toArray();
+        return [
+            ...($this->title === null ? [] : ['title' => $this->title]),
+            ...($this->descriptionGiven ? ['description' => $this->description] : []),
+        ];
     }
 }
 ```
@@ -77,7 +62,6 @@ final class Update{Entity}Data extends Data
 
 ```php
 <?php
-// app/Http/Requests/{Entity}/Store{Entity}Request.php
 
 declare(strict_types=1);
 
@@ -90,32 +74,24 @@ final class Store{Entity}Request extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        return $this->user() !== null;
     }
 
+    /** @return array<string, array<int, string>> */
     public function rules(): array
     {
-        return Create{Entity}Data::rules();
+        return [
+            'title' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string', 'max:5000'],
+        ];
     }
 
     public function toDto(): Create{Entity}Data
     {
-        return Create{Entity}Data::from($this->validated());
-    }
-
-    protected function prepareForValidation(): void
-    {
-        $this->merge([
-            'title' => strip_tags(trim($this->title ?? '')),
-            'description' => $this->description
-                ? strip_tags(trim($this->description))
-                : null,
-        ]);
+        return new Create{Entity}Data(
+            $this->string('title')->toString(),
+            $this->filled('description') ? $this->string('description')->toString() : null,
+        );
     }
 }
 ```
-
-## Ключевые моменты
-- `toDto()` преобразует валидированные данные в типизированный DTO
-- `prepareForValidation()` очищает входные данные перед валидацией
-- `Update{Entity}Data::toUpdateArray()` фильтрует поля Optional — отправляйте в репозиторий только изменённые поля

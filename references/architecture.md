@@ -4,10 +4,10 @@
 
 - Single Responsibility — каждый слой отвечает за одно
 - Dependency Injection через конструктор
-- Тонкие Контроллеры, Толстые Сервисы
+- Точки входа тонкие: контроллер, команда, задание, слушатель зовут сервис
 - Repository — только для доступа к данным
 - QueryBuilder — для всех scopes и сложных запросов
-- Каждый слой тестируется отдельно
+- Основной тест — Feature через HTTP на настоящей базе; Unit — для расчётов
 
 ## Диаграмма Потока Данных
 
@@ -34,7 +34,7 @@ Model/Collection → JsonApiResource → JSON:API Response
 
 ## Политика DB Доступа (обязательная)
 
-- **Controller**: БЕЗ доступа к БД. Нет `Model::query()`, `create()`, `save()`, `delete()`
+- **Controller, Command, Job, Listener**: БЕЗ доступа к БД. Нет `Model::query()`, `create()`, `save()`, `delete()`
 - **Service**: бизнес-логика и оркестрация. БЕЗ прямых запросов. Все операции через Repository
 - **Repository**: ЕДИНСТВЕННОЕ место для DB запросов. Все query(), фильтры, сортировки, выборки — только здесь
 - **QueryBuilder/Scopes**: вся сложная логика запросов в QueryBuilder классах, вызываются из Repository
@@ -48,8 +48,8 @@ app/
 ├── Builders/                        # QueryBuilder classes
 │   └── {Entity}QueryBuilder.php
 ├── Contracts/
-│   └── Enums/                       # Enum interfaces (HasLabel, HasColor, HasIcon)
-├── DataTransferObjects/             # DTOs via Spatie Data
+│   └── Enums/                       # Контракты для второй реализации
+├── DataTransferObjects/             # final readonly DTO
 │   └── {Entity}/
 │       ├── Create{Entity}Data.php
 │       ├── Update{Entity}Data.php
@@ -73,40 +73,32 @@ app/
 ├── Models/
 │   └── {Entity}.php
 ├── Repositories/
-│   ├── Contracts/                   # Repository interfaces
-│   │   └── {Entity}RepositoryInterface.php
-│   └── Eloquent/                    # Implementations
+│   └── {Entity}Repository.php       # final, без интерфейса
 │       └── {Entity}Repository.php
 ├── Services/
 │   └── {Entity}Service.php
 ├── Providers/
 │   ├── AppServiceProvider.php
-│   └── RepositoryServiceProvider.php
 └── Events/
     └── {Entity}Created.php
 ```
 
-## Repository Service Provider
+## Границы доверия по слоям (безопасность)
 
-```php
-<?php
-// app/Providers/RepositoryServiceProvider.php
+Проверка живёт в одном месте — на последнем доверенном решении. Дублировать в каждом вызове нельзя: забытый вызов и есть дыра.
 
-declare(strict_types=1);
+| Слой | Что обязан обеспечить | Типичный дефект |
+|------|----------------------|-----------------|
+| FormRequest | границы (`max:`), схема URL, `Rule::exists(...)->where(владелец)`, `current_password` при смене почты/пароля, `authorize()` | `exists:apis,id` без владельца; массив без `max` |
+| Middleware | `abilities:`, `throttle`, подпись и секрет (`hash_equals`, пустой = отказ), `licenses`-флаг | маршрут без `abilities`; секрет в query |
+| Controller | только вызов сервиса; параметры маршрута считаются недоверенными (`{path}`) | `?`/`..` в `{path}` |
+| Service | переходы статусов, права владельца, резерв и идемпотентность, исходящий HTTP только через `OutboundUrlGuard` | владелец снимает `BLOCKED`; check-then-act по балансу |
+| Repository/QueryBuilder | tenant-ограничение, общий constraint (`ACTIVE`, `is_public`, продавец не `BLOCKED`), атомарный `UPDATE ... WHERE` | пустой список фильтров снимает границу |
+| Resource | белый список полей, секреты и credentials не отдаются | `default_headers` продавца в публичной карточке |
+| Model | `$fillable`, `$hidden`, `encrypted` cast; без `$guarded = []` | `secret_key` без `$hidden` |
+| ServiceProvider | boot guard: пустой/dev-секрет, `fake`-адаптер и тестовые коннекторы в production | тестовый путь доступен в production |
 
-namespace App\Providers;
-
-use Illuminate\Support\ServiceProvider;
-
-final class RepositoryServiceProvider extends ServiceProvider
-{
-    public array $bindings = [
-        // \App\Repositories\Contracts\{Entity}RepositoryInterface::class => \App\Repositories\Eloquent\{Entity}Repository::class,
-    ];
-}
-```
-
-Зарегистрируйте в `bootstrap/providers.php` (Laravel 11).
+Исходящий HTTP — отдельный компонент `app/Support/OutboundUrlGuard.php`, а не `Http::post($url)` в сервисе. Правила — `references/security.md`, раздел «Правила по результатам аудита».
 
 ## Шаблоны кода по слоям
 

@@ -1,0 +1,54 @@
+# Слои: точка входа → Service → Repository → QueryBuilder → Model.
+# Контроллеру и точкам входа модель открыта как имя (привязка маршрута,
+# полезная нагрузка задания); вызов запроса ловит tests/Unit/ArchitectureTest.php.
+deptrac:
+  paths:
+    - ./app
+
+  layers:
+    - name: Controller
+      collectors:
+        - { type: directory, value: app/Http/Controllers/.* }
+    - name: Resource
+      collectors:
+        - { type: directory, value: app/Http/Resources/.* }
+    - name: Entry
+      collectors:
+        - { type: directory, value: app/(Console|Jobs|Listeners)/.* }
+    - name: Service
+      collectors:
+        - { type: directory, value: app/Services/.* }
+    - name: Repository
+      collectors:
+        - { type: directory, value: app/Repositories/.* }
+    - name: QueryBuilder
+      collectors:
+        - { type: directory, value: app/Builders/.* }
+    - name: Model
+      collectors:
+        - { type: directory, value: app/Models/.* }
+    - name: DTO
+      collectors:
+        - { type: directory, value: app/(DataTransferObjects|Data)/.* }
+    # Остальной app: enum, исключения, запросы, провайдеры. Без этого слоя
+    # зависимость от них была бы «uncovered» и проходила молча.
+    - name: App
+      collectors:
+        - type: bool
+          must:
+            - { type: classLike, value: '^App\\' }
+          must_not:
+            - { type: directory, value: app/(Http/Controllers|Http/Resources|Console|Jobs|Listeners|Services|Repositories|Builders|Models|DataTransferObjects|Data)/.* }
+
+  # Монорепо с пакетами: те же слои с префиксом Pkg, включая PkgEntry для команд и заданий пакета.
+  ruleset:
+    Controller: [Service, DTO, Model, Resource, App]
+    Entry: [Service, DTO, Model, App]
+    Resource: [DTO, Model, App]
+    # Entry у сервиса — постановка задания в очередь.
+    Service: [Service, Repository, DTO, Model, Entry, App]
+    Repository: [QueryBuilder, DTO, Model, App]
+    QueryBuilder: [Model, App]
+    DTO: [App]
+    Model: [App]
+    App: [Controller, Resource, Entry, Service, Repository, QueryBuilder, Model, DTO]

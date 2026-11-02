@@ -34,21 +34,21 @@ public function test_cannot_view_other_users_resource(): void
 {
     $other = {Entity}::factory()->create();
     $this->apiAs()->getJson("/api/v1/{entities}/{$other->key}")
-        ->assertForbidden();
+        ->assertNotFound();
 }
 
 public function test_cannot_update_other_users_resource(): void
 {
     $other = {Entity}::factory()->create();
     $this->apiAs()->patchJson("/api/v1/{entities}/{$other->key}", ['name' => 'Hacked'])
-        ->assertForbidden();
+        ->assertNotFound();
 }
 
 public function test_cannot_delete_other_users_resource(): void
 {
     $other = {Entity}::factory()->create();
     $this->apiAs()->deleteJson("/api/v1/{entities}/{$other->key}")
-        ->assertForbidden();
+        ->assertNotFound();
 }
 ```
 
@@ -228,6 +228,16 @@ public function test_store_duplicate_email_returns_409(): void
 }
 ```
 
+## Границы доверия (сверх 25 кейсов)
+
+На каждый инвариант из `references/secure-design.md` — отдельный тест:
+
+- два фиктивных арендатора через один и тот же вызов: чужой id → 404/422, свой → 200;
+- повтор после смены прав, удаления и блокировки владельца;
+- печальные значения входа: пусто, ноль, отрицательное, максимум, сверх лимита, дубль, `%2e`/регистр, отозванное;
+- параллельность для одноразовых и денежных операций (второй запрос получает отказ);
+- пустой секрет и неверная подпись → 401; редирект исходящего запроса не отслеживается.
+
 ## Чеклист (25 обязательных кейсов)
 
 ```
@@ -235,7 +245,9 @@ public function test_store_duplicate_email_returns_409(): void
 □ Smoke: JSON:API структура ответа на каждом эндпоинте
 □ Auth: 401 без токена
 □ Auth: 401 невалидный токен
-□ Auth: 403 IDOR на show, update, delete
+□ Auth: 404 чужой ресурс на show, update, delete
+□ Auth: 403 ключ без нужного abilities:
+□ Лишний ключ: в теле POST/PATCH добавь status, role, owner_id, price — значение не записалось
 □ Validation: пустое тело → 422
 □ Validation: required field missing → 422
 □ Validation: max length exceeded → 422

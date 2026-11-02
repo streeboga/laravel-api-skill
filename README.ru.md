@@ -50,7 +50,7 @@ laravel-api-skill/
     ├── controller.md                 # Thin controllers, JSON:API, middleware
     ├── service-layer.md              # Бизнес-логика, events, jobs, caching
     ├── repository-layer.md           # Repository + QueryBuilder паттерны
-    ├── dto.md                        # Spatie Data DTOs, FormRequests
+    ├── dto.md                        # readonly DTO, FormRequests
     ├── models.md                     # Модели, public keys, миграции
     ├── enums.md                      # PHP Enums, HasLabel/HasColor, CacheKey
     ├── api-resources.md              # JSON:API ресурсы (timacdonald/json-api)
@@ -71,7 +71,7 @@ laravel-api-skill/
 
 ### Принцип: Hub → Reference Files
 
-`SKILL.md` — это хаб (~170 строк), который **всегда** загружается в контекст. Он содержит:
+`SKILL.md` — это хаб (~160 строк), который **всегда** загружается в контекст. Он содержит:
 - Диаграмму архитектуры
 - JSON:API правила
 - Таблицу маршрутизации к reference-файлам
@@ -434,13 +434,13 @@ GSD спавнит субагента с чистым 200K-контекстом 
 ## Архитектура скилла
 
 ```
-SKILL.md (hub, ~170 строк, загружается всегда)
+SKILL.md (hub, ~160 строк, загружается всегда)
     │
     ├── Архитектурные слои ──→ architecture.md (концепция)
     │   ├── controller.md          (шаблоны + правила)
     │   ├── service-layer.md       (шаблоны + events + jobs)
     │   ├── repository-layer.md    (шаблоны + QueryBuilder)
-    │   ├── dto.md                 (Spatie Data + FormRequest)
+    │   ├── dto.md                 (readonly DTO + FormRequest)
     │   ├── models.md              (public keys + миграции)
     │   └── enums.md               (статусы + CacheKey)
     │

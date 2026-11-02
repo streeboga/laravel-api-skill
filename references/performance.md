@@ -68,7 +68,7 @@ $customers = Customer::with(['orders:id,customer_id,total,status'])->get();
 ```php
 QueryBuilder::for(Customer::where('app_id', $app->id))
     ->allowedIncludes('orders', 'orders.items', 'subscriptions')
-    ->defaultSort('-created_at')
+    ->defaultSort('-created_at', '-id')
     ->paginate();
 ```
 
@@ -182,7 +182,7 @@ Schema::create('customers', function (Blueprint $table) {
 ```
 
 ### Правила индексирования
-- Foreign keys — всегда (Laravel делает автоматически через `constrained()`)
+- Foreign keys — всегда. `constrained()` индекс не создаёт: MySQL заводит его сам, в Postgres нужен явный `->index()`
 - Колонки в `WHERE` — single index
 - Частые пары в `WHERE` + `ORDER BY` — composite index
 - Unique constraints — через `->unique()`

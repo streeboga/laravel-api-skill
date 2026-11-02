@@ -79,7 +79,8 @@ class Order extends Model
 {
     protected $fillable = ['total_amount', 'currency', 'discount_amount'];
 
-    protected $casts = [
+    // метод casts(): array, Laravel 11+
+return [
         'total_amount' => MoneyCast::class,
         'discount_amount' => MoneyCast::class,
     ];
@@ -160,13 +161,12 @@ declare(strict_types=1);
 namespace App\DataTransferObjects\Order;
 
 use Brick\Money\Money;
-use Spatie\LaravelData\Data;
 
-final class CreateOrderData extends Data
+final readonly class CreateOrderData
 {
     public function __construct(
-        public readonly Money $totalAmount,
-        public readonly Money $discountAmount,
+        public Money $totalAmount,
+        public Money $discountAmount,
         // ...
     ) {}
 
@@ -238,3 +238,11 @@ $total = $rub->plus($usd);  // MoneyMismatchException!
 $total = $price->multipliedBy($quantity, RoundingMode::HALF_UP);
 $withTax = $total->multipliedBy('1.20', RoundingMode::HALF_UP);
 ```
+
+## Производная константа — один источник
+
+Если множитель минорных единиц (копейки/центы, или 1e-8 и т.п.) где-то читается из конфига или сервиса — не вставляй вторую копию той же цифры в другом месте «это же очевидно то же самое». Разряд меняют (были 2 знака, стали 8) — первая копия обновится, вторая тихо разойдётся, и деньги будут неправильными на порядок без единой ошибки в логах.
+
+## Soft-delete владельца в денежном/историческом коде
+
+`SoftDeletes` на модели владельца (`User` и т.п.) прячет закрытую запись от `Model::query()`, `::find()` и любого `belongsTo()` — **без исключения**, просто `null`. Код проводок, журнала, сверки и админки, который идёт через такую связь, должен брать её с `withTrashed()` — иначе закрытый аккаунт выглядит как «нет владельца», проводка зависает, сверка пропускает кошелёк молча. Код входа/регистрации действий — наоборот, без `withTrashed()`: закрытый аккаунт обязан остаться закрытым. Это разные случаи, решать по месту, а не одним глобальным правилом.

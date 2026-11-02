@@ -35,6 +35,7 @@ use Dedoc\Scramble\Attributes\PathParameter;
 use Dedoc\Scramble\Attributes\QueryParameter;
 use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 #[Group('{Entities}', description: '{Entity} management', weight: 0)]
@@ -85,11 +86,13 @@ final class {Entity}Controller extends Controller
      *
      * Retrieve a single {entity} by public key.
      */
-    #[PathParameter('key', description: '{Entity} public key', example: '{prefix}_01jd5x7k3m9p2q4r6s8t0v')]
+    #[PathParameter('{entity}', description: '{Entity} public key', example: '{prefix}_01jd5x7k3m9p2q4r6s8t0v')]
     #[Response(200, description: '{Entity} details')]
     #[Response(404, description: '{Entity} not found')]
     public function show({Entity} ${entity})
     {
+        Gate::authorize('view', ${entity});
+
         return {Entity}Resource::make(${entity});
     }
 
@@ -98,12 +101,14 @@ final class {Entity}Controller extends Controller
      *
      * Update {entity} fields. Only provided fields are changed.
      */
-    #[PathParameter('key', description: '{Entity} public key', example: '{prefix}_01jd5x7k3m9p2q4r6s8t0v')]
+    #[PathParameter('{entity}', description: '{Entity} public key', example: '{prefix}_01jd5x7k3m9p2q4r6s8t0v')]
     #[Response(200, description: '{Entity} updated')]
     #[Response(404, description: '{Entity} not found')]
     #[Response(422, description: 'Validation error')]
     public function update(Update{Entity}Request $request, {Entity} ${entity})
     {
+        Gate::authorize('update', ${entity});
+
         ${entity} = $this->service->update(${entity}, $request->toDto());
 
         return {Entity}Resource::make(${entity});
@@ -114,11 +119,13 @@ final class {Entity}Controller extends Controller
      *
      * Remove or deactivate the {entity}.
      */
-    #[PathParameter('key', description: '{Entity} public key', example: '{prefix}_01jd5x7k3m9p2q4r6s8t0v')]
+    #[PathParameter('{entity}', description: '{Entity} public key', example: '{prefix}_01jd5x7k3m9p2q4r6s8t0v')]
     #[Response(204, description: '{Entity} deleted')]
     #[Response(404, description: '{Entity} not found')]
     public function destroy({Entity} ${entity}): HttpResponse
     {
+        Gate::authorize('delete', ${entity});
+
         $this->service->delete(${entity});
 
         return response()->noContent();
@@ -134,13 +141,15 @@ final class {Entity}Controller extends Controller
 
 use App\Http\Controllers\Api\V1\{Entity}Controller;
 
+// Имя в пути совпадает с именем аргумента метода, иначе Laravel подставит пустую модель.
+// Ключ поиска задаёт getRouteKeyName().
 Route::middleware(['auth:sanctum', 'json-api'])->prefix('v1')->group(function () {
     // {Entities}
     Route::get('{entities}', [{Entity}Controller::class, 'index']);
     Route::post('{entities}', [{Entity}Controller::class, 'store']);
-    Route::get('{entities}/{key}', [{Entity}Controller::class, 'show']);
-    Route::patch('{entities}/{key}', [{Entity}Controller::class, 'update']);    // PATCH, не PUT!
-    Route::delete('{entities}/{key}', [{Entity}Controller::class, 'destroy']);
+    Route::get('{entities}/{entity}', [{Entity}Controller::class, 'show']);
+    Route::patch('{entities}/{entity}', [{Entity}Controller::class, 'update']);    // PATCH, не PUT!
+    Route::delete('{entities}/{entity}', [{Entity}Controller::class, 'destroy']);
 });
 ```
 
@@ -156,6 +165,7 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpFoundation\Response;
 
 final class ForceJsonApiContentType
@@ -234,7 +244,7 @@ public function paginateForUser(User $user): LengthAwarePaginator
         )
         ->allowedSorts('created_at', 'name', 'code') // ?sort=-created_at,name
         ->allowedIncludes('charges', 'charges.metric') // ?include=charges.metric
-        ->defaultSort('-created_at')
+        ->defaultSort('-created_at', '-id')
         ->paginate(min((int) request()->input('page.size', 20), 100));
 }
 ```
@@ -284,3 +294,7 @@ public function store(Store{Entity}Request $request)
     ${entity} = $this->service->create($request->user(), $request->toDto());
 }
 ```
+
+## Вложенные маршруты
+
+`/orgs/{org}/projects/{project}`: `->scopeBindings()` или `{project:slug}`, иначе проект находится вне организации. Это сужает выборку, политику не заменяет.
