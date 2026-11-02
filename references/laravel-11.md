@@ -1,4 +1,4 @@
-# Laravel 11/12 — Структура и Паттерны
+# Laravel 11–13 — Структура и Паттерны
 
 ## Ключевые изменения
 
@@ -288,3 +288,9 @@ abstract class TestCase extends \Illuminate\Foundation\Testing\TestCase
 - [ ] Удалить `RouteServiceProvider` — rate limiting в `AppServiceProvider`
 - [ ] Обновить `$casts` property на `casts()` метод
 - [ ] Удалить неиспользуемые config файлы
+
+## Laravel 13
+
+- Задания: атрибуты `#[Tries]`, `#[Timeout]`, `#[Backoff]`, `#[FailOnTimeout]` равны свойствам. В проекте один способ.
+- `cache.serializable_classes` задай списком или `false`: без значения кэш десериализует любой класс.
+- Встроенный `JsonApiResource` не смешивай с timacdonald без явного решения.

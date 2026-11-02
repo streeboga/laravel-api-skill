@@ -6,7 +6,7 @@
 - Dependency Injection через конструктор
 - Точки входа тонкие: контроллер, команда, задание, слушатель зовут сервис
 - Repository — только для доступа к данным
-- QueryBuilder — для всех scopes и сложных запросов
+- QueryBuilder — для сложных запросов и сырого SQL
 - Основной тест — Feature через HTTP на настоящей базе; Unit — для расчётов
 
 ## Диаграмма Потока Данных
@@ -24,7 +24,7 @@ Service (бизнес-логика, транзакции, события)
     ↓
 Repository (CRUD операции)
     ↓
-QueryBuilder (построение запросов, scopes)
+QueryBuilder (сложный запрос с именем по смыслу)
     ↓
 Model → Database
 
@@ -37,9 +37,13 @@ Model/Collection → JsonApiResource → JSON:API Response
 - **Controller, Command, Job, Listener**: БЕЗ доступа к БД. Нет `Model::query()`, `create()`, `save()`, `delete()`
 - **Service**: бизнес-логика и оркестрация. БЕЗ прямых запросов. Все операции через Repository
 - **Repository**: ЕДИНСТВЕННОЕ место для DB запросов. Все query(), фильтры, сортировки, выборки — только здесь
-- **QueryBuilder/Scopes**: вся сложная логика запросов в QueryBuilder классах, вызываются из Repository
+- **QueryBuilder**: сложные запросы и сырой SQL. Класс без состояния, принимает и возвращает запрос
 
-**Правило**: ВСЕ запросы идут через Repository или через scopes/QueryBuilder из Repository.
+**Правило**: все запросы идут через Repository; сложное он отдаёт в QueryBuilder.
+
+## Версии API
+
+Внутри версии только добавление. Ломающее — в новую версию, старой — заголовки `Deprecation` и `Sunset`.
 
 ## Структура Директорий
 
@@ -74,7 +78,6 @@ app/
 │   └── {Entity}.php
 ├── Repositories/
 │   └── {Entity}Repository.php       # final, без интерфейса
-│       └── {Entity}Repository.php
 ├── Services/
 │   └── {Entity}Service.php
 ├── Providers/
@@ -98,7 +101,7 @@ app/
 | Model | `$fillable`, `$hidden`, `encrypted` cast; без `$guarded = []` | `secret_key` без `$hidden` |
 | ServiceProvider | boot guard: пустой/dev-секрет, `fake`-адаптер и тестовые коннекторы в production | тестовый путь доступен в production |
 
-Исходящий HTTP — отдельный компонент `app/Support/OutboundUrlGuard.php`, а не `Http::post($url)` в сервисе. Правила — `references/security.md`, раздел «Правила по результатам аудита».
+Исходящий HTTP на адрес из данных — через единственный компонент проверки адреса, а не вызовом `Http::` по месту.
 
 ## Шаблоны кода по слоям
 

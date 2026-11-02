@@ -46,7 +46,7 @@ use App\DataTransferObjects\Payment\PaymentResult;
 interface PaymentGatewayInterface
 {
     public function charge(ChargeData $data): PaymentResult;
-    public function refund(string $transactionId, int $amountInCents): PaymentResult;
+    public function refund(string $transactionId, Money $amount): PaymentResult;
     public function getTransaction(string $transactionId): PaymentResult;
 }
 ```
@@ -78,7 +78,7 @@ final class StripeGateway implements PaymentGatewayInterface
         // Stripe-специфичная логика
     }
 
-    public function refund(string $transactionId, int $amountInCents): PaymentResult
+    public function refund(string $transactionId, Money $amount): PaymentResult
     {
         // ...
     }
@@ -154,9 +154,9 @@ class PaymentManager extends Manager implements PaymentGatewayInterface
         return $this->driver()->charge($data);
     }
 
-    public function refund(string $transactionId, int $amountInCents): PaymentResult
+    public function refund(string $transactionId, Money $amount): PaymentResult
     {
-        return $this->driver()->refund($transactionId, $amountInCents);
+        return $this->driver()->refund($transactionId, $amount);
     }
 
     public function getTransaction(string $transactionId): PaymentResult

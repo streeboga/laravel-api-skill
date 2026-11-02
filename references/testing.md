@@ -210,6 +210,8 @@ final class {Entity}ControllerTest extends ApiTestCase
 ```
 
 ## Правила
+
+- Тест падает, когда ломается поведение. Слоп: всё замокано, проверен только статус, «не бросает», зеркало реализации.
 - Наследуй ApiTestCase для всех API тестов
 - Применяй helper `apiAs()` для аутентифицированных запросов
 - Отправляй данные как плоский JSON: `{name: "John"}`, НЕ в `data.attributes` envelope

@@ -98,8 +98,8 @@ it('сырой SQL живёт только в Builders', function (): void {
     ))->toBe([]);
 });
 
-it('в модели нет scopeXxx и $guarded = []', function (): void {
-    expect(offenders(sources('Models'), '/function\s+scope[A-Z]\w*\s*\(|\$guarded\s*=\s*\[\s*\]/'))->toBe([]);
+it('в модели нет scopeXxx, #[Scope] и $guarded = []', function (): void {
+    expect(offenders(sources('Models'), '/function\s+scope[A-Z]\w*\s*\(|#\[Scope\]|\$guarded\s*=\s*\[\s*\]/'))->toBe([]);
 });
 
 it('в коде нет fresh(), dd() и dump()', function (): void {
@@ -149,8 +149,8 @@ it('у задания очереди есть предел повторов и �
         if (! str_contains($code, 'ShouldQueue')) {
             continue;
         }
-        $hasLimit = str_contains($code, '$tries') || str_contains($code, 'retryUntil');
-        if (! $hasLimit || ! str_contains($code, '$timeout')) {
+        $hasLimit = preg_match('/\$tries|retryUntil|#\[Tries/', $code) === 1;
+        if (! $hasLimit || preg_match('/\$timeout|#\[Timeout/', $code) !== 1) {
             $missing[] = basename($file);
         }
     }

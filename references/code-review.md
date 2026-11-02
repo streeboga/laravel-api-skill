@@ -14,7 +14,7 @@
    - Тесты → `references/testing.md` + `references/testing-edge-cases.md`
    - Качество → `references/quality.md` + `references/phpstan-rules.md`
    - Производительность → `references/performance.md`
-   - Laravel 11/12 → `references/laravel-11.md`
+   - Laravel 11–13 → `references/laravel-11.md`
 3. Выдай отчёт по шаблону внизу
 
 Для каждого пункта:
@@ -32,11 +32,10 @@
 □ Сервисы ≤200 строк (если больше — дроби по бизнес-назначению)
 □ Нет God-Service (один сервис = одна зона ответственности)
 □ Repository содержит только работу с данными
-□ QueryBuilder содержит все scopes и сложные запросы
-□ Model НЕ содержит scopeXxx методов (scopes в QueryBuilder)
+□ QueryBuilder держит сложные запросы и сырой SQL; простое условие живёт в репозитории
+□ Model не содержит `scopeXxx()` и `#[Scope]`
 □ Данные передаются через DTO, не через массивы
 □ Dependency Injection через конструктор
-□ Интерфейсы для репозиториев
 □ Нет обращений к БД из Controller или Service
 □ Нет циклических зависимостей между сервисами
 ```
@@ -50,7 +49,7 @@
 □ Все параметры и return types типизированы
 □ Нет mixed типов — используй union types
 □ PSR-12 (Laravel Pint) — код отформатирован
-□ PHPStan level 9 — без ошибок
+□ PHPStan level проекта (минимум 8) — без ошибок
 ```
 
 ## 3. Enums
@@ -71,9 +70,8 @@
 ## 4. QueryBuilder
 
 ```
-□ Все scopes вынесены в отдельный Builder класс
-□ Модели НЕ содержат scopeXxx методов
-□ Builder возвращает $this для chaining
+□ Builder без состояния: принимает и возвращает запрос
+□ Модели не содержат `scopeXxx()` и `#[Scope]`
 □ Валидация разрешённых колонок для сортировки
 □ Валидация разрешённых связей для eager loading
 □ Методы принимают Enums, не строки
@@ -99,7 +97,6 @@
 □ Только CRUD операции и запросы
 □ Нет бизнес-логики
 □ Использует QueryBuilder для сложных запросов
-□ Зарегистрирован в ServiceProvider
 ```
 
 ## 7. Безопасность
@@ -240,7 +237,7 @@
 □ Ошибки → assertJsonStructure(['errors' => [['status', 'title', 'detail']]])
 ```
 
-## 13. Laravel 11/12 Compliance
+## 13. Laravel 11–13 Compliance
 
 ```
 □ Middleware в bootstrap/app.php (не в Kernel.php)
@@ -352,7 +349,7 @@ final readonly class CustomerService {
 ### JSON:API Compliance: ✅/⚠️/❌
 ### API Documentation: ✅/⚠️/❌
 ### Тестирование: ✅/⚠️/❌
-### Laravel 11/12: ✅/⚠️/❌
+### Laravel 11–13: ✅/⚠️/❌
 ### Оценка: X/10
 ### Критические проблемы: N
 ### Приоритетные исправления: [список]

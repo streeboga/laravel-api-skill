@@ -107,7 +107,6 @@ Claude загружает → `architecture.md` → все reference-файлы 
 6. Store Request       → app/Http/Requests/Invoice/StoreInvoiceRequest.php
 7. Update Request      → app/Http/Requests/Invoice/UpdateInvoiceRequest.php
 8. QueryBuilder       → app/Builders/InvoiceQueryBuilder.php
-9. Repository Interface → app/Repositories/Contracts/InvoiceRepositoryInterface.php
 10. Repository         → app/Repositories/Eloquent/InvoiceRepository.php
 11. Service            → app/Services/InvoiceService.php
 12. Controller         → app/Http/Controllers/Api/V1/InvoiceController.php

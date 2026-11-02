@@ -197,7 +197,7 @@ includes:
 parameters:
     paths:
         - app/
-    level: 9
+    level: 8
 
 rules:
     - App\PHPStan\Rules\NoDatabaseAccessInControllersRule

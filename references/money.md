@@ -14,7 +14,7 @@ composer require brick/money
 
 ## Правила
 
-- Храни в БД как `bigint` в минорных единицах (копейки, центы)
+- Храни в БД одним способом на проект: `bigint` в минорных единицах, если хватает копеек; `numeric` нужной точности с `CustomContext`, если цена мельче копейки (цена за токен). Разряд задан в одном месте, вторая копия множителя запрещена
 - В коде ВСЕГДА работай через `Money` объект — никакой арифметики с int/float напрямую
 - Передавай `Money` через DTO, не int и не string
 - В API Resource форматируй: `amount` (int, минорные единицы) + `amount_formatted` (string, для UI)
@@ -130,7 +130,7 @@ final class MoneyCast implements CastsAttributes
             return $value->getMinorAmount()->toInt();
         }
 
-        // Если передали int — считаем что это уже копейки
+        // Голый int принимается только здесь и только в разряде этой колонки
         return (int) $value;
     }
 }
@@ -226,8 +226,9 @@ $discount = $total - 10.5;
 // ❌ int без Money объекта в бизнес-логике
 $total = $item['price'] * $item['quantity'];
 
-// ❌ Хранить как decimal/float в БД
-$table->decimal('price', 10, 2);  // Нет! Используй bigInteger
+// ❌ float в БД и decimal с точностью меньше цены
+$table->float('price');
+$table->decimal('price', 10, 2);  // цена за токен обнулится
 
 // ❌ Смешивать валюты
 $rub = Money::of(100, 'RUB');
