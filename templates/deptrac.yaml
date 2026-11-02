@@ -50,5 +50,6 @@ deptrac:
     Repository: [QueryBuilder, DTO, Model, App]
     QueryBuilder: [Model, App]
     DTO: [App]
-    Model: [App]
+    # QueryBuilder у модели — трейт общих скоупов из Builders/Concerns.
+    Model: [QueryBuilder, App]
     App: [Controller, Resource, Entry, Service, Repository, QueryBuilder, Model, DTO]

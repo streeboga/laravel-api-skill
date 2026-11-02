@@ -137,7 +137,7 @@ final class NoResponseJsonInControllersRule implements Rule
 }
 ```
 
-## Правило 3: Запрет scopeXxx в Models
+## Правило 3: Запрет скоупов в теле модели (трейты из Builders/Concerns разрешены)
 
 ```php
 <?php
