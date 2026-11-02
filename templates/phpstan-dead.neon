@@ -1,0 +1,28 @@
+# Мёртвый код: то, чего не достичь без тестов. Отдельно от phpstan.neon: здесь в
+# анализ входят маршруты, конфиги и база, иначе вызовы оттуда не видны.
+# Пакеты монорепо добавь в paths, их tests и vendor в excludePaths.
+includes:
+    - vendor/larastan/larastan/extension.neon
+    - vendor/shipmonk/dead-code-detector/rules.neon
+    - vendor/edalzell/dead-code-detector-laravel/extension.neon
+
+services:
+    -
+        class: PHPStanHub\FrameworkUsageProvider
+        tags:
+            - shipmonk.deadCode.memberUsageProvider
+
+parameters:
+    level: 0
+    paths:
+        - app/
+        - routes/
+        - config/
+        - bootstrap/app.php
+        - bootstrap/providers.php
+        - database/
+    shipmonkDeadCode:
+        reportTransitivelyDeadMethodAsSeparateError: true
+        usageExcluders:
+            tests:
+                enabled: true
